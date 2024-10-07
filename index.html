@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy
+      Object Inverse Rendering</title>
+    <!-- Bootstrap -->
+    <link href="css/bootstrap-4.4.1.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <!-- <link href='http://fonts.googleapis.com/css?family=Open+Sans:400italic,700italic,800italic,400,700,800' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="css/project.css" media="screen" />
+    <link rel="stylesheet" type="text/css" media="screen" href="css/iconize.css" />
+    <script src="js/google-code-prettify/prettify.js"></script> -->
+  </head>
+
+  <!-- cover -->
+  <section>
+    <div class="jumbotron text-center mt-0">
+      <div class="container">
+        <div class="row">
+          <div class="col-12">
+            <h2>RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy
+              Object Inverse Rendering
+            <hr>
+            <h6>
+                <a href="https://dehezhang2.github.io/" target="_blank">Deheng Zhang</a><sup>*1, 2</sup>,
+                <a href="https://github.com/ccetaw" target="_blank">Jingyu Wang</a><sup>*1</sup>,
+                <a href="https://taconite.github.io/" target="_blank">Shaofei Wang</a><sup>1</sup>,,
+                <a href="https://markomih.github.io/" target="_blank">Marko Mihajlovic</a><sup>1</sup>,,
+                <a href="https://uni-tuebingen.de/fakultaeten/mathematisch-naturwissenschaftliche-fakultaet/fachbereiche/informatik/lehrstuehle/computergrafik/lehrstuhl/mitarbeiter/prof-dr-ing-hendrik-lensch/" target="_blank">Hendrik P.A. Lensch</a><sup>2</sup>,
+                <a href="https://vlg.inf.ethz.ch/team/Prof-Dr-Siyu-Tang.html" target="_blank">Siyu Tang</a><sup>1</sup>,
+              
+            </h6>
+            <p>
+              (* means equal contribution)
+            </p>
+            <p>
+                <sup>1</sup>ETH Zürich&nbsp;&nbsp;
+                <sup>2</sup>University of Tübingen&nbsp;&nbsp;
+            </p>
+
+            <div class="row justify-content-center">
+              <div class="column">
+                  <p class="mb-5"><a class="btn btn-large btn-light" href="https://www.arxiv.org/pdf/2409.20140" role="button"  target="_blank">
+                    <i class="fa fa-file"></i> Paper</a> </p>
+              </div>
+              <!-- <div class="column">
+                  <p class="mb-5"><a class="btn btn-large btn-light" href="https://polybox.ethz.ch/index.php/s/L1hEW3abDCQkeOm" role="button"  target="_blank">
+                    <i class="fa fa-database"></i> Dataset </a> </p>
+              </div>
+              <div class="column">
+                <p class="mb-5"><a class="btn btn-large btn-light" href="https://polybox.ethz.ch/index.php/s/jbm79zNnwgmhAtz" role="button"  target="_blank">
+                  <i class="fa fa-database"></i> Blender Files </a> </p>
+              </div> -->
+              <!-- <div class="column">
+                <p class="mb-5"><a class="btn btn-large btn-light" href="https://polybox.ethz.ch/index.php/s/ygXCSXUa6ORjCws" role="button"  target="_blank">
+                  <i class="fa fa-database"></i> Models </a> </p>
+            </div> -->
+            <div class="column">
+              <p class="mb-5"><a class="btn btn-large btn-light" href="" role="button"  target="_blank">
+                <i class="fa fa-github-alt"></i> Code & Dataset (coming soon) </a> </p>
+          </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- abstract -->
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>Abstract</h3>
+            <hr style="margin-top:0px">
+            <h6 style="color:#8899a5"> We present RISE-SDF, a method for reconstructing the geometry and material of glossy objects while achieving
+              high-quality relighting. Our results, compared with the state-of-the-art method NeRO, show superior albedo and roughness estimation with
+              significantly less training time. As an end-to-end relightable model, our algorithm generates high-quality relighting images without noise
+              or aliasing. </h6>
+<!--            <div align="center"> For an unseen objects, we can simply take. </div>-->
+
+            <div class="row" style="margin-bottom:5px">
+              <div class="col" style="text-align:center">
+                <img class="thumbnail" src="image/teaser.jpg" style="width:100%; margin-bottom:20px">
+              </div>
+            </div>
+			<br>
+
+          <p class="text-left">
+            In this paper, we propose a novel end-to-end relightable neural inverse rendering system that achieves high-quality reconstruction of geometry and material properties, thus enabling high-quality relighting. The cornerstone of our method is a two-stage approach for learning a better factorization of scene parameters. In the first stage, we develop a reflection-aware radiance field using a neural signed distance field (SDF) as the geometry representation and deploy an MLP (multilayer perceptron) to estimate indirect illumination. In the second stage, we introduce a novel information-sharing network structure to jointly learn the radiance field and the physically based factorization of the scene. For the physically based factorization, to reduce the noise caused by Monte Carlo sampling, we apply a split-sum approximation with a simplified Disney BRDF and cube mipmap as the environment light representation. In the relighting phase, to enhance the quality of indirect illumination, we propose a second split-sum algorithm to trace secondary rays under the split-sum rendering this http URL, there is no dataset or protocol available to quantitatively evaluate the inverse rendering performance for glossy objects. To assess the quality of material reconstruction and relighting, we have created a new dataset with ground truth BRDF parameters and relighting results. Our experiments demonstrate that our algorithm achieves state-of-the-art performance in inverse rendering and relighting, with particularly strong results in the reconstruction of highly reflective objects. 
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
+
+
+
+
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+            <h2>Video</h2>
+            <hr style="margin-top:0px">
+            <div class="row" style="margin-bottom:5px">
+              <div class="embed-responsive embed-responsive-16by9">
+                <iframe class="embed-responsive-item" src="https://www.youtube.com/embed/7JQNCMPR5_0" title="RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy Object Inverse Rendering" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+              </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
+
+  
+
+
+<!--   citing -->
+  <div class="container">
+    <div class="row ">
+      <div class="col-12">
+          <h3>Citation</h3>
+          <hr style="margin-top:0px">
+              <pre style="background-color: #e9eeef;padding: 1.25em 1.5em">
+<code>@misc{zhang2024risesdfrelightableinformationsharedsigned,
+  title={RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy Object Inverse Rendering}, 
+  author={Deheng Zhang and Jingyu Wang and Shaofei Wang and Marko Mihajlovic and Sergey Prokudin and Hendrik P. A. Lensch and Siyu Tang},
+  year={2024},
+  eprint={2409.20140},
+  archivePrefix={arXiv},
+  primaryClass={cs.CV},
+  url={https://arxiv.org/abs/2409.20140}, 
+}</code></pre>
+          <hr>
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center" style="margin-bottom:10px">
+      Thanks to <a href="https://lioryariv.github.io/" target="_blank">Lior Yariv</a> for the website template.
+  </footer>
+
+</body>
+</html>
