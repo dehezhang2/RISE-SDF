@@ -70,6 +70,28 @@
     </div>
   </section>
 
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>TL; DR</h3>
+
+          <hr style="margin-top:0px">
+          <h6 style="color:#8899a5"> We present RISE-SDF, a method for reconstructing the geometry and material of glossy objects while achieving
+            high-quality relighting. </h6>
+        <!--            <div align="center"> For an unseen objects, we can simply take. </div>-->
+
+        <div class="row" style="margin-bottom:5px">
+          <div class="col" style="text-align:center">
+            <img class="thumbnail" src="image/teaser.gif" style="width:100%; margin-bottom:20px">
+          </div>
+        </div>
+        <br>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
 
   <!-- abstract -->
   <section>
@@ -77,19 +99,6 @@
       <div class="row">
         <div class="col-12 text-center">
           <h3>Abstract</h3>
-            <hr style="margin-top:0px">
-            <h6 style="color:#8899a5"> We present RISE-SDF, a method for reconstructing the geometry and material of glossy objects while achieving
-              high-quality relighting. Our results, compared with the state-of-the-art method NeRO, show superior albedo and roughness estimation with
-              significantly less training time. As an end-to-end relightable model, our algorithm generates high-quality relighting images without noise
-              or aliasing. </h6>
-<!--            <div align="center"> For an unseen objects, we can simply take. </div>-->
-
-            <div class="row" style="margin-bottom:5px">
-              <div class="col" style="text-align:center">
-                <img class="thumbnail" src="image/teaser.jpg" style="width:100%; margin-bottom:20px">
-              </div>
-            </div>
-			<br>
 
           <p class="text-left">
             In this paper, we propose a novel end-to-end relightable neural inverse rendering system that achieves high-quality reconstruction of geometry and material properties, thus enabling high-quality relighting. The cornerstone of our method is a two-stage approach for learning a better factorization of scene parameters. In the first stage, we develop a reflection-aware radiance field using a neural signed distance field (SDF) as the geometry representation and deploy an MLP (multilayer perceptron) to estimate indirect illumination. In the second stage, we introduce a novel information-sharing network structure to jointly learn the radiance field and the physically based factorization of the scene. For the physically based factorization, to reduce the noise caused by Monte Carlo sampling, we apply a split-sum approximation with a simplified Disney BRDF and cube mipmap as the environment light representation. In the relighting phase, to enhance the quality of indirect illumination, we propose a second split-sum algorithm to trace secondary rays under the split-sum rendering framework. Furthermore, there is no dataset or protocol available to quantitatively evaluate the inverse rendering performance for glossy objects. To assess the quality of material reconstruction and relighting, we have created a new dataset with ground truth BRDF parameters and relighting results. Our experiments demonstrate that our algorithm achieves state-of-the-art performance in inverse rendering and relighting, with particularly strong results in the reconstruction of highly reflective objects. 
@@ -100,6 +109,97 @@
   </section>
   <br>
 
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>Method Overview</h3>
+          <div class="row" style="margin-bottom:5px">
+            <div class="col" style="text-align:center">
+              <img class="thumbnail" src="image/pipeline_v2.png" style="width:75%; margin-bottom:20px">
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="text-left"> Our pipeline. The colors of the features in the figure indicate different feature concatenation combinations. (1)
+        Given the location, the progressive hash grid with the geometry MLP predicts the geometry feature and the corresponding volume rendering weight (2) For the
+        color representation, separate networks predict per-sample albedo, metallic, and roughness. They share the information between the direct volume rendering pipeline (black arrow) and the physically based rendering pipeline (red arrow). (3) The per-sample values (all except the blue value) are rendered via volume rendering. Then we compute the expected surface intersection and trace another ray to compute the occlusion probability. Finally, the direct and indirect colors are blended. </p>
+    </div>
+  </section>
+  <br>
+
+
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>Comparison</h3>
+          <h6 style="color:#8899a5">Our results, compared with the state-of-the-art method NeRO[1], show superior albedo and roughness estimation with
+            significantly less training time. As an end-to-end relightable model, our algorithm generates high-quality relighting images without noise
+            or aliasing. </h6>
+          <div class="row" style="margin-bottom:5px">
+            <div class="col" style="text-align:center">
+              <img class="thumbnail" src="image/teaser.jpg" style="width:100%; margin-bottom:20px">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
+
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>Material</h3>
+          <h6 style="color:#8899a5">We compare the material with other baseline models: NeRO[1], NMF[2], NDRMC[3]</h6>
+          <div class="row" style="margin-bottom:5px">
+            <div class="col" style="text-align:center">
+              <img class="thumbnail" src="image/material.gif" style="width:100%; margin-bottom:20px">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
+
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>Relighting</h3>
+          <h6 style="color:#8899a5">We compare the relighting result with other baseline models: NeRO[1], NMF[2], ENVIDR[4], GShader[5]</h6>
+          <div class="row" style="margin-bottom:5px">
+            <div class="col" style="text-align:center">
+              <img class="thumbnail" src="image/relighting.gif" style="width:100%; margin-bottom:20px">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
+
+  <section>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <p class="text-left">
+            [1] NeRO: Neural Geometry and BRDF Reconstruction of Reflective Objects from Multiview Images. SIGGRAPH 2023.  <br>
+            [2] Neural Microfacet Fields for Inverse Rendering. ICCV 2023. <br>
+            [3] Shape, Light, and Material Decomposition from Images using Monte Carlo Rendering and Denoising. NeurIPS 2022. <br>
+            [4] ENVIDR: Implicit Differentiable Render with Neural Environment Lighting. ICCV 2023. <br>
+            [5] GaussianShader: 3D Gaussian Splatting with Shading Functions for Reflective Surfaces. CVPR 2024. 
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
+
+  
 
 
 
@@ -107,7 +207,7 @@
     <div class="container">
       <div class="row">
         <div class="col-12 text-center">
-            <h2>Video</h2>
+            <h2>Supplementary Video</h2>
             <hr style="margin-top:0px">
             <div class="row" style="margin-bottom:5px">
               <div class="embed-responsive embed-responsive-16by9">
