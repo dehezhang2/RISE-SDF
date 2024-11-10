@@ -5,7 +5,7 @@ seed: 42
 dataset:
   name: blender
   scene: ???
-  root_dir: /cluster/scratch/jingyuwang/data/shiny_blender/${dataset.scene}
+  root_dir: ./load/TensoIR_Synthetic/${dataset.scene}
   img_wh:
     - 800
     - 800
