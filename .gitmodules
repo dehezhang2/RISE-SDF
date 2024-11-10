@@ -1,3 +1,0 @@
-[submodule "lib/pbr"]
-	path = lib/pbr
-	url = git@github.com:taconite/torch_pbr.git

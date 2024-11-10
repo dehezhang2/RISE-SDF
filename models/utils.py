@@ -92,20 +92,10 @@ def get_activation(name):
         return lambda x: x + float(name)
     elif name == 'sigmoid':
         return lambda x: torch.sigmoid(x)
-    elif name == 'drv_sigmoid':
-        return lambda x: 4 * torch.sigmoid(x) * (1 - torch.sigmoid(x))
     elif name == 'tanh':
         return lambda x: torch.tanh(x)
     else:
         return getattr(F, name)
-
-def HWC_to_BCHW(HWC):
-    BCHW = HWC.unsqueeze(0).permute(0, 3, 1, 2)
-    return BCHW
-    
-def BCHW_to_HWC(BCHW):
-    HWC = BCHW.permute(0, 2, 3, 1).squeeze(0)
-    return HWC
 
 
 def dot(x, y):
@@ -145,3 +135,91 @@ class GaussianHistogram(nn.Module):
         x = torch.exp(-0.5*(x/self.sigma)**2) / (self.sigma * np.sqrt(np.pi*2)) * self.delta
         x = x.sum(dim=1)
         return x
+
+def match_colors_for_image_set_hard_mask(rendered_img, edited_img, image_mask):
+    """
+    rendered_img: [H, W, 3]
+    edited_img: [H, W, 3]
+    image_mask: [H, W]
+    """
+    sh = rendered_img.shape
+
+    rendered_img = rendered_img.view(-1, 3)
+    edited_img = edited_img.view(-1, 3).to(rendered_img.device)
+    image_mask = image_mask.view(-1).to(rendered_img.device)
+
+    labels = torch.unique(image_mask).to(rendered_img.device)
+
+    for label in labels:
+        image_region = rendered_img[image_mask==label]
+        style_region = edited_img[image_mask==label]
+        mu_c = image_region.mean(0, keepdim=True)
+        mu_s = style_region.mean(0, keepdim=True)
+        cov_c = torch.matmul((image_region - mu_c).transpose(1, 0), image_region - mu_c) / float(image_region.size(0))
+        cov_s = torch.matmul((style_region - mu_s).transpose(1, 0), style_region - mu_s) / float(style_region.size(0))
+        
+        u_c, sig_c, _ = torch.svd(cov_c)
+        u_s, sig_s, _ = torch.svd(cov_s)
+        u_c_i = u_c.transpose(1, 0)
+        u_s_i = u_s.transpose(1, 0)
+
+        scl_c = torch.diag(1.0 / torch.sqrt(torch.clamp(sig_c, 1e-8, 1e8)))
+        scl_s = torch.diag(torch.sqrt(torch.clamp(sig_s, 1e-8, 1e8)))
+
+        tmp_mat = u_s @ scl_s @ u_s_i @ u_c @ scl_c @ u_c_i
+        tmp_vec = mu_s.view(1, 3) - mu_c.view(1, 3) @ tmp_mat.T
+
+        image_region = image_region @ tmp_mat.T + tmp_vec.view(1, 3)
+        image_region = image_region.contiguous().clamp_(0.0, 1.0)
+        rendered_img[image_mask==label] = image_region
+    rendered_img = rendered_img.view(sh)
+    return rendered_img
+
+def match_colors_for_image_set_hard_mask_albedo(rendered_img, edited_img, rendered_albedo, image_mask):
+    """
+    rendered_img: [H, W, 3]
+    edited_img: [H, W, 3]
+    rendered_albedo: [H, W, 3]
+    image_mask: [H, W]
+    """
+    sh = rendered_img.shape
+    assert sh == rendered_albedo.shape
+    rendered_img = rendered_img.view(-1, 3)
+    rendered_albedo = rendered_albedo.view(-1, 3)
+    edited_img = edited_img.view(-1, 3).to(rendered_img.device)
+    image_mask = image_mask.view(-1).to(rendered_img.device)
+
+    labels = torch.unique(image_mask).to(rendered_img.device)
+
+    for label in labels:
+        image_region = rendered_img[image_mask==label]
+        albedo_region = rendered_albedo[image_mask==label]
+        style_region = edited_img[image_mask==label]
+        mu_c = image_region.mean(0, keepdim=True)
+        mu_s = style_region.mean(0, keepdim=True)
+        cov_c = torch.matmul((image_region - mu_c).transpose(1, 0), image_region - mu_c) / float(image_region.size(0))
+        cov_s = torch.matmul((style_region - mu_s).transpose(1, 0), style_region - mu_s) / float(style_region.size(0))
+        
+        u_c, sig_c, _ = torch.svd(cov_c)
+        u_s, sig_s, _ = torch.svd(cov_s)
+        u_c_i = u_c.transpose(1, 0)
+        u_s_i = u_s.transpose(1, 0)
+
+        scl_c = torch.diag(1.0 / torch.sqrt(torch.clamp(sig_c, 1e-8, 1e8)))
+        scl_s = torch.diag(torch.sqrt(torch.clamp(sig_s, 1e-8, 1e8)))
+
+        tmp_mat = u_s @ scl_s @ u_s_i @ u_c @ scl_c @ u_c_i
+        tmp_vec = mu_s.view(1, 3) - mu_c.view(1, 3) @ tmp_mat.T
+
+        image_region = image_region @ tmp_mat.T + tmp_vec.view(1, 3)
+        image_region = image_region.contiguous().clamp_(0.0, 1.0)
+
+        albedo_region = albedo_region @ tmp_mat.T + tmp_vec.view(1, 3)
+        albedo_region = albedo_region.contiguous().clamp_(0.0, 1.0)
+
+        rendered_img[image_mask==label] = image_region
+        rendered_albedo[image_mask==label] = albedo_region
+
+    rendered_img = rendered_img.view(sh)
+    rendered_albedo = rendered_img.view(sh)
+    return rendered_img, rendered_albedo

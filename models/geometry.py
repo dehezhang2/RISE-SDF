@@ -11,74 +11,23 @@ from models.utils import scale_anything, get_activation, cleanup, chunk_batch
 from models.network_utils import get_encoding, get_mlp, get_encoding_with_network
 from utils.misc import get_rank
 from systems.utils import update_module_step
+from lib.nerfacc import ContractionType
 
 
 def contract_to_unisphere(x, radius, contraction_type):
-    if contraction_type == "AABB":
-        _x = scale_anything(x, (-radius, radius), (0, 1))
-        # return _x
-    elif contraction_type == "UN_BOUNDED_SPHERE":
+    if contraction_type == ContractionType.AABB:
+        x = scale_anything(x, (-radius, radius), (0, 1))
+    elif contraction_type == ContractionType.UN_BOUNDED_SPHERE:
         x = scale_anything(x, (-radius, radius), (0, 1))
         x = x * 2 - 1  # aabb is at [-1, 1]
         mag = x.norm(dim=-1, keepdim=True)
-        # Avoid inplace operation, as it causes CUDA error when backward
-        _x = torch.where(
-            mag > 1,
-            (2 - 1 / mag) * (x / mag),
-            x
-        )
-        _x = _x / 4 + 0.5  # [-inf, inf] is at [0, 1]
+        mask = mag.squeeze(-1) > 1
+        x[mask] = (2 - 1 / mag[mask]) * (x[mask] / mag[mask])
+        x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
     else:
         raise NotImplementedError
-    return _x
-
-def aabb_normalization(x, aabb):
-    """
-    Normalize points inside AABB. Points outside will not be clamped.
-
-    Args:
-    - x: Tensor [n_samples, 3] or [n_rays, n_samples, 3]. Spatial locations.
-    - aabb: Tensor [6,]. Axis-aligned bounding box.
-
-    Returns:
-    - Nomalized positions.
-    """
-    aabb_min, aabb_max = torch.split(aabb, 3, dim=-1)
-    x = (x- aabb_min) / (aabb_max - aabb_min)
     return x
 
-def unisphere_contraction(x, aabb):
-    """
-    Contract points to unisphere. See mip-NeRF 360 https://jonbarron.info/mipnerf360/.
-    
-    Args:
-    - x: Tensor [n_samples, 3] or [n_rays, n_samples, 3]. Spatial locations.
-
-    Return:
-    - Contracted positions with same dims. 
-
-    Note:
-    x is in the canonical space
-    x will in the first place be normalized, e.g. using the `aabb_normalization` function. 
-    Points inside AABB will be mapped to [0.25, 0.75].
-    Points outside AABB will be mapped to [0, 0.25) and (0.75, 1]
-    """
-    x = aabb_normalization(x, aabb)
-    x = x * 2 - 1  # aabb is at [-1, 1]
-    mag = x.norm(dim=-1, keepdim=True)
-    # Avoid inplace operation, as it causes CUDA error when backward
-    x = torch.where(
-        mag > 1,
-        (2 - 1 / mag) * (x / mag),
-        x
-    )
-    x = x / 4 + 0.5  # [-inf, inf] is at [0, 1]
-    return x
-
-def sphere_normalization(x):
-    norm = torch.norm(x, dim=-1, keepdim=True)
-    points = torch.cat([0.5 * x/ norm + 0.5  , 1.0 / norm], -1) 
-    return points
 
 class MarchingCubeHelper(nn.Module):
     def __init__(self, resolution, use_torch=True):
@@ -125,24 +74,8 @@ class BaseImplicitGeometry(BaseModel):
             if self.config.isosurface.method == 'mc-torch':
                 raise NotImplementedError("Please do not use mc-torch. It currently has some scaling issues I haven't fixed yet.")
             self.helper = MarchingCubeHelper(self.config.isosurface.resolution, use_torch=self.config.isosurface.method=='mc-torch')
-        self.center = self.config.get("center", [0.0, 0.0, 0.0])
         self.radius = self.config.radius
-        self.register_buffer(
-            "aabb",
-            torch.as_tensor(
-                [
-                    self.center[0] - self.radius,
-                    self.center[1] - self.radius,
-                    self.center[2] - self.radius,
-                    self.center[0] + self.radius,
-                    self.center[1] + self.radius,
-                    self.center[2] + self.radius,
-                ],
-                dtype=torch.float32,
-            ),
-        )
-        print("AABB:", self.aabb)
-        self.contraction_type = self.config.get("contraction_type", "AABB")
+        self.contraction_type = None # assigned in system
 
     def forward_level(self, points):
         raise NotImplementedError
@@ -171,10 +104,7 @@ class BaseImplicitGeometry(BaseModel):
     def isosurface(self):
         if self.config.isosurface is None:
             raise NotImplementedError
-        mesh_coarse = self.isosurface_(
-            (self.center[0]-self.radius, self.center[1]-self.radius, self.center[2]-self.radius), 
-            (self.center[0]+self.radius, self.center[1]+self.radius, self.center[2]+self.radius)
-        )
+        mesh_coarse = self.isosurface_((-self.radius, -self.radius, -self.radius), (self.radius, self.radius, self.radius))
         vmin, vmax = mesh_coarse['v_pos'].amin(dim=0), mesh_coarse['v_pos'].amax(dim=0)
         vmin_ = (vmin - (vmax - vmin) * 0.1).clamp(-self.radius, self.radius)
         vmax_ = (vmax + (vmax - vmin) * 0.1).clamp(-self.radius, self.radius)
@@ -188,8 +118,9 @@ class VolumeDensity(BaseImplicitGeometry):
         self.n_input_dims = self.config.get('n_input_dims', 3)
         self.n_output_dims = self.config.feature_dim
         self.encoding_with_network = get_encoding_with_network(self.n_input_dims, self.n_output_dims, self.config.xyz_encoding_config, self.config.mlp_network_config)
+        self.contract_to_unisphere = self.config.get("contract_to_unisphere", True)
 
-    def forward(self, points, normalize_func=None, with_grad=False, with_feature=False):
+    def forward(self, points, normalize_func=None, with_grad=False):
         with torch.inference_mode(torch.is_inference_mode_enabled() and not with_grad):
             with torch.set_grad_enabled(self.training or with_grad):
                 if with_grad:
@@ -200,15 +131,11 @@ class VolumeDensity(BaseImplicitGeometry):
                     points.requires_grad_(True)
 
                 points_ = points  # points in the original scale
-                if self.contraction_type == "AABB":
-                    points = aabb_normalization(points, self.aabb)
-                elif self.contraction_type == "UN_BOUNDED_SPHERE":
-                    points = unisphere_contraction(points, self.aabb)
-                elif self.contraction_type == "NERFPP":
-                    points = sphere_normalization(points)
-                else:
-                    raise NotImplementedError
 
+                if self.contract_to_unisphere:
+                    points = contract_to_unisphere(
+                        points, self.radius, self.contraction_type
+                    )
                 if normalize_func is not None:
                     points = normalize_func(points)
 
@@ -240,14 +167,9 @@ class VolumeDensity(BaseImplicitGeometry):
                     )[0]
                     derived_normals = -F.normalize(gradients, dim=-1, eps=1e-6)
                     derived_normals = derived_normals.reshape(-1, 3)
-
-                rv = [density]
-                if with_grad:
-                    rv.append(derived_normals)
-                if with_feature:
-                    rv.append(feature)
-                rv = [v if self.training else v.detach() for v in rv]
-                return rv[0] if len(rv) == 1 else rv
+                    return density, derived_normals, feature
+                else:
+                    return density, feature
 
     def forward_level(self, points):
         points = contract_to_unisphere(points, self.radius, self.contraction_type)
@@ -271,11 +193,7 @@ class VolumeDensity(BaseImplicitGeometry):
 @models.register('volume-sdf')
 class VolumeSDF(BaseImplicitGeometry):
     def setup(self):
-        self.pred_normal = self.config.get("pred_normal", False)
-        if self.pred_normal:
-            self.n_output_dims = self.config.feature_dim + 3
-        else: 
-            self.n_output_dims = self.config.feature_dim
+        self.n_output_dims = self.config.feature_dim
         encoding = get_encoding(3, self.config.xyz_encoding_config)
         network = get_mlp(encoding.n_output_dims, self.n_output_dims, self.config.mlp_network_config)
         self.encoding, self.network = encoding, network
@@ -285,7 +203,7 @@ class VolumeSDF(BaseImplicitGeometry):
         if self.grad_type == 'finite_difference':
             rank_zero_info(f"Using finite difference to compute gradients with eps={self.finite_difference_eps}")
 
-    def forward(self, points, with_grad=True, with_feature=True, with_normal=False, with_laplace=False):
+    def forward(self, points, with_grad=True, with_feature=True, with_laplace=False):
         with torch.inference_mode(torch.is_inference_mode_enabled() and not (with_grad and self.grad_type == 'analytic')):
             with torch.set_grad_enabled(self.training or (with_grad and self.grad_type == 'analytic')):
                 if with_grad and self.grad_type == 'analytic':
@@ -294,26 +212,14 @@ class VolumeSDF(BaseImplicitGeometry):
                     points.requires_grad_(True)
 
                 points_ = points # points in the original scale
-                if self.contraction_type == "AABB":
-                    points = aabb_normalization(points, self.aabb)
-                elif self.contraction_type == "UN_BOUNDED_SPHERE":
-                    points = unisphere_contraction(points, self.aabb)
-                elif self.contraction_type == "NERFPP":
-                    points = sphere_normalization(points)
-                else:
-                    raise NotImplementedError
+                points = contract_to_unisphere(points, self.radius, self.contraction_type) # points normalized to (0, 1)
 
                 out = self.network(self.encoding(points.view(-1, 3))).view(*points.shape[:-1], self.n_output_dims).float()
-                if self.pred_normal:
-                    sdf, feature, normal = out[..., 0], out[..., 0:self.config.feature_dim], out[..., -3:]
-                else:
-                    sdf, feature = out[..., 0], out
+                sdf, feature = out[...,0], out
                 if 'sdf_activation' in self.config:
                     sdf = get_activation(self.config.sdf_activation)(sdf + float(self.config.sdf_bias))
                 if 'feature_activation' in self.config:
                     feature = get_activation(self.config.feature_activation)(feature)
-                if 'normal_activation' in self.config and self.pred_normal:
-                    normal = get_activation(self.config.normal_activation)(normal)
                 if with_grad:
                     if self.grad_type == 'analytic':
                         grad = torch.autograd.grad(
@@ -374,16 +280,11 @@ class VolumeSDF(BaseImplicitGeometry):
                                 torch.clamp(dot, -1.0 + 1e-6, 1.0 - 1e-6)
                             )  # goes to range 0 when the angle is the same and pi when is opposite
                             laplace = angle / np.pi
-                    else:
-                        raise ValueError
-
         rv = [sdf]
         if with_grad:
             rv.append(grad)
         if with_feature:
             rv.append(feature)
-        if self.pred_normal and with_normal:
-            rv.append(F.normalize(normal, eps=1e-6, dim=-1))
         if with_laplace:
             assert self.config.grad_type == 'finite_difference', "Laplace computation is only supported with grad_type='finite_difference'"
             rv.append(laplace)
@@ -417,15 +318,10 @@ class VolumeSDF(BaseImplicitGeometry):
                 self._finite_difference_eps = grid_size
             else:
                 raise ValueError(f"Unknown finite_difference_eps={self.finite_difference_eps}")
-
+    
     def regularizations(self, out):
-        ret = {}
-        # normal_orientation = out["normal_orientation_loss_map"].mean()
-        # ret = {
-        #     "normal_orientation": normal_orientation,
-        # }
-        if self.pred_normal:
-            normal_similarity = out["normal_similarity_loss_map"].mean()
-            ret.update({"normal_similarity": normal_similarity})
-
+        normal_orientation = out["normals_orientation_loss_map"].mean()
+        ret = {
+            "normal_orientation": normal_orientation,
+        }
         return ret

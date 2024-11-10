@@ -16,4 +16,4 @@ def make(name, config, load_from_checkpoint=None):
     return system
 
 
-from . import neus
+from . import neus, split_occ

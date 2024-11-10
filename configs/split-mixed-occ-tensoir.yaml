@@ -1,0 +1,206 @@
+name: split-mixed-occ-tensoir-${dataset.scene}
+tag: ''
+seed: 42
+
+dataset:
+  name: tensoir
+  scene: ???
+  root_dir: ../instant-inv-glossy/load/TensoIR_Synthetic/${dataset.scene}
+  img_wh:
+    - 800
+    - 800
+  # img_downscale: 1 # specify training image size by either img_wh or img_downscale
+  near_plane: 2.0
+  far_plane: 6.0
+  train_split: 'train'
+  val_split: 'test'
+  test_split: 'test'
+  openGL_camera: true
+  hdr_input: false
+  # light_name: sunset
+  # relight_list:  ['bridge', 'city', 'courtyard', 'fireplace', 'forest', 'night', 'snow', 'sunset', 'tunnel']
+  relight_list:  []
+  hdr_filepath: ./load/high_res_envmaps_2k/
+  has_albedo: true
+  albedo_format: 'exr'
+  has_roughness: false
+  roughness_format: 'exr'
+  
+
+model:
+  name: split-mixed-occ
+  indirect_pred: true
+  relighting_threshold: 0.3
+  radius: 1.5
+  num_samples_per_ray: 1024
+  num_samples_per_secondary_ray: 96
+  train_num_rays: 256
+  max_train_num_rays: 4096
+  grid_prune: true
+  grid_prune_occ_thre: 0.001
+  dynamic_ray_sampling: true
+  batch_image_sampling: true
+  randomized: true
+  ray_chunk: 4096
+  cos_anneal_end: 10000
+  learned_background: false
+  split_sum_kick_in_step: 10000
+  background_color: random
+  variance:
+    init_val: 0.3
+    modulate: false
+  geometry:
+    name: volume-sdf
+    radius: ${model.radius}
+    feature_dim: 48
+    grad_type: finite_difference
+    finite_difference_eps: progressive
+    isosurface:
+      method: mc
+      resolution: 512
+      chunk: 2097152
+      threshold: 0.
+    xyz_encoding_config:
+      otype: ProgressiveBandHashGrid
+      n_levels: 16
+      start_level: 6
+      start_step: 6000
+      update_steps: 500
+      n_features_per_level: 2
+      log2_hashmap_size: 19
+      base_resolution: 32
+      per_level_scale: 1.447269237440378
+      include_xyz: true
+    mlp_network_config:
+      otype: VanillaMLP
+      activation: ReLU
+      output_activation: none
+      n_neurons: 128
+      n_hidden_layers: 2
+      sphere_init: true
+      sphere_init_radius: 0.5
+      weight_norm: true
+  texture:
+    name: volume-mixed-mip-split-occ
+    input_feature_dim: ${add:${model.geometry.feature_dim},0} # surface normal as additional input
+    other_dim: 3
+    sample_size: 8
+    dir_encoding_config:
+      otype: SphericalHarmonics
+      degree: 5
+      reflected: true
+    metallic_mlp_network_config:
+      otype:  VanillaMLP
+      activation: ReLU
+      output_activation: none
+      n_neurons: 128
+      n_hidden_layers: 2
+    albedo_mlp_network_config:
+      otype:  VanillaMLP
+      activation: ReLU
+      output_activation: none
+      n_neurons: 128
+      n_hidden_layers: 4
+    spec_mlp_network_config:
+      otype:  VanillaMLP
+      activation: ReLU
+      output_activation: none
+      n_neurons: 128
+      n_hidden_layers: 4
+    roughness_mlp_network_config:
+      otype:  VanillaMLP
+      activation: ReLU
+      output_activation: none
+      n_neurons: 128
+      n_hidden_layers: 2
+    secondary_mlp_network_config:
+      otype:  VanillaMLP
+      activation: ReLU
+      output_activation: none
+      n_neurons: 128
+      n_hidden_layers: 4
+    xyz_encoding_config:
+      otype: VanillaFrequency
+      n_frequencies: 6
+    color_activation: sigmoid
+    scatterer:
+      name: brdf-ggx
+  light:
+      name: envlight-mip-cube
+      envlight_config:
+        hdr_filepath: null
+        clamp: true
+        nmf_format: False
+        scale: 0.5
+        bias: 0.25
+        base_res: 512
+system:
+  name: split-occ-system
+  loss:
+    lambda_rgb_mse: 10.
+    lambda_rgb_l1: 0.
+    lambda_rgb_phys_mse: 10.
+    lambda_rgb_phys_l1: 0.
+    lambda_mask: 0.1
+    lambda_eikonal: 0.05
+    lambda_sparsity: 0.01
+    lambda_curvature: 1
+    lambda_distortion: 0.
+    lambda_opaque: 0.
+    lambda_normal_orientation: 0.05
+    lambda_emitter_distillation: 0.
+    sparsity_scale: 1.
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.005
+      betas: [0.9, 0.999]
+      eps: 1.e-12
+    params:
+      geometry:
+          lr: 0.005
+      texture:
+          lr: 0.005
+      variance:
+          lr: 0.001
+      emitter:
+          lr: 0.01
+  warmup_steps: 500
+  scheduler:
+    name: SequentialLR
+    interval: step
+    milestones:
+      - ${system.warmup_steps}
+    schedulers:
+      - name: LinearLR # linear warm-up in the first system.warmup_steps steps
+        args:
+          start_factor: 0.01
+          end_factor: 1.0
+          total_iters: ${system.warmup_steps}
+      - name: ExponentialLR
+        args:
+          gamma: ${calc_exp_lr_decay_rate:0.1,${sub:${trainer.max_steps},${system.warmup_steps}}}
+
+checkpoint:
+  save_top_k: -1
+  every_n_train_steps: ${trainer.max_steps}
+
+export:
+  chunk_size: 2097152
+  export_vertex_color: True  
+
+trainer:
+  max_steps: 80000
+  log_every_n_steps: 100
+  num_sanity_val_steps: 0
+  val_check_interval: 5000
+  limit_train_batches: 1.0
+  limit_val_batches: 3
+  enable_progress_bar: true 
+  precision: 32
+
+# logger:
+#   project: instant-nsr-pbr
+#   entity: dehezhang2
+#   id: null
+#   offline: false

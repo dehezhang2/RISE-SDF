@@ -60,9 +60,6 @@ def main():
     config.code_dir = config.get('code_dir') or os.path.join(config.exp_dir, config.trial_name, 'code')
     config.config_dir = config.get('config_dir') or os.path.join(config.exp_dir, config.trial_name, 'config')
 
-    logger = logging.getLogger('pytorch_lightning')
-    if args.verbose:
-        logger.setLevel(logging.DEBUG)
 
     if 'seed' not in config:
         config.seed = int(time.time() * 1000) % 1000
@@ -88,22 +85,6 @@ def main():
             CustomProgressBar(refresh_rate=1),
         ]
 
-    loggers = []
-    if args.train:
-        loggers += [
-            CSVLogger(config.exp_dir, name=config.trial_name, version='csv_logs'),
-            # WandbLogger(
-            #     name=config.name + '_' + config.tag,
-            #     project=config.logger.project,
-            #     entity=config.logger.entity,
-            #     id=config.logger.id,
-            #     save_dir=config.log_dir,
-            #     config=config,
-            #     offline=config.logger.offline,
-            #     settings=wandb.Settings(start_method="fork"),
-            # )
-        ]
-
     if sys.platform == 'win32':
         # does not support multi-gpu on windows
         strategy = 'dp'
@@ -115,7 +96,6 @@ def main():
         devices=n_gpus,
         accelerator='gpu',
         callbacks=callbacks,
-        logger=loggers,
         strategy=strategy,
         **config.trainer
     )

@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 import models
 from models.geometry import contract_to_unisphere
@@ -8,330 +7,10 @@ from models.utils import get_activation
 from models.network_utils import get_encoding, get_mlp
 from systems.utils import update_module_step
 
-def get_camera_plane_intersection(pts, dirs, poses):
-    """
-    Source: https://github.com/liuyuan-pal/NeRO/blob/c210fe80aa9e6a590946a1469f2515f1e168495e/network/field.py#L348 
-    compute the intersection between the rays and the camera XoY plane
-    :param pts:      pn,3
-    :param dirs:     pn,3
-    :param poses:    pn,3,4
-    :return:
-    """
-    R, t = poses[:,:,:3], poses[:,:,3:]
-
-    # transfer into human coordinate
-    pts_ = (R @ pts[:,:,None] + t)[..., 0] # pn,3
-    dirs_ = (R @ dirs[:,:,None])[..., 0]   # pn,3
-
-    hits = torch.abs(dirs_[..., 2]) > 1e-4
-    dirs_z = dirs_[:, 2]
-    dirs_z[~hits] = 1e-4
-    dist = -pts_[:, 2] / dirs_z
-    inter = pts_ + dist.unsqueeze(-1) * dirs_
-    return inter, dist, hits
-
-@models.register('volume-layered-radiance')
-class VolumeLayeredRadiance(nn.Module):
-    """
-    Occlusion-aware volume radiance
-    """
-    def __init__(self, config):
-        super(VolumeLayeredRadiance, self).__init__()
-        self.config = config
-        self.blend_type = self.config.get('blend_type', 'surface')
-        self.n_dir_dims = self.config.get('n_dir_dims', 3)
-        self.n_pos_dims = self.config.get('n_pos_dims', 3)
-        self.n_output_dims = self.config.get('n_output_dims', 7)
-        self.pred_vis = self.config.get('pred_vis', False)
-        dir_encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        xyz_encoding = get_encoding(self.n_pos_dims, self.config.xyz_encoding_config)
-        ref_primary_network = get_mlp(
-            self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims, 
-            3, 
-            self.config.ref_primary_network_config
-        )
-        ref_secondary_network = get_mlp(
-            self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims + xyz_encoding.n_output_dims,
-            # self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims, 
-            4 if self.config.pred_vis else 3, 
-            self.config.ref_secondary_network_config
-        )
-        dif_network = get_mlp(
-            self.config.input_feature_dim,
-            3, 
-            self.config.diffuse_network_config
-        )
-        blend_network = get_mlp(
-            self.config.input_feature_dim,
-            1, 
-            self.config.blend_network_config
-        )
-        self.dir_encoding = dir_encoding
-        self.xyz_encoding = xyz_encoding
-        self.ref_primary_network = ref_primary_network 
-
-        if self.config.secondary_shading:
-            self.ref_secondary_network = ref_secondary_network 
-        else:
-            self.ref_secondary_network = None
-
-        if self.config.reflection_only:
-            self.dif_network = None
-            self.blend_network = None
-        else:
-            self.dif_network = dif_network
-            self.blend_network = blend_network
-
-    def diffuse(self, features):
-        dif_network_inp = torch.cat([features.view(-1, features.shape[-1])], dim=-1)
-        dif_color = self.dif_network(dif_network_inp).view(*features.shape[:-1], 3).float()
-        if 'color_activation' in self.config:
-            dif_color = get_activation(self.config.color_activation)(dif_color)
-        return dif_color
-
-    def reflective(self, features, dirs, *args):
-        if self.config.dir_encoding_config.reflected:
-            normals = args[0]
-            dirs = -2 * torch.sum(dirs * normals, dim=-1, keepdim=True) * normals + dirs
-        dirs = (dirs + 1.) / 2. # (-1, 1) => (0, 1)
-        dirs_embd = self.dir_encoding(dirs.view(-1, dirs.shape[-1]))
-        ref_network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        ref_color = self.ref_primary_network(ref_network_inp).view(*features.shape[:-1], 3).float()
-        if 'color_activation' in self.config:
-            ref_color = get_activation(self.config.color_activation)(ref_color)
-
-        blend_network_inp = torch.cat([features.view(-1, features.shape[-1])], dim=-1)
-        blend = self.blend_network(blend_network_inp).view(*features.shape[:-1], 1).float()
-        if 'blend_activation' in self.config:
-            blend = get_activation(self.config.blend_activation)(blend)
-
-        return torch.cat([ref_color, blend], dim=-1)
-
-    def secondary_shading(self, features, rays_o, rays_d, *args):
-        rays_d = (rays_d + 1.) / 2. # (-1, 1) => (0, 1)
-        xyz_embd = self.xyz_encoding(rays_o.view(-1, self.n_pos_dims))
-        dirs_embd = self.dir_encoding(rays_d.view(-1, self.n_dir_dims))
-        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        # network_inp = torch.cat([xyz_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        color = self.ref_secondary_network(network_inp).view(*network_inp.shape[:-1], 4 if self.config.pred_vis else 3).float()
-        if 'color_activation' in self.config:
-            color = get_activation(self.config.color_activation)(color)
-        return color
-
-    def update_step(self, epoch, global_step):
-        update_module_step(self.dir_encoding, epoch, global_step)
-        update_module_step(self.xyz_encoding, epoch, global_step)
-
-    def regularizations(self, out):
-        visibility_smoothness = out['visibility_smoothness_loss_map'].mean()
-        return {
-            'visibility_smoothness': visibility_smoothness
-        }
-
-
-@models.register('volume-mix-radiance')
-class VolumeMixRadiance(nn.Module):
-    """
-    Occlusion-aware volume radiance
-    """
-    def __init__(self, config):
-        super(VolumeMixRadiance, self).__init__()
-        self.config = config
-        self.blend_type = self.config.get('blend_type', 'surface')
-        self.n_dir_dims = self.config.get('n_dir_dims', 3)
-        self.n_pos_dims = self.config.get('n_pos_dims', 3)
-        self.n_output_dims = self.config.get('n_output_dims', 7)
-        self.pred_vis = self.config.get('pred_vis', False)
-        self.human_ref = self.config.get('human_ref', False)
-        dir_encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        xyz_encoding = get_encoding(self.n_pos_dims, self.config.xyz_encoding_config)
-        ref_primary_network = get_mlp(
-            self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims, 
-            3, 
-            self.config.ref_primary_network_config
-        )
-        ref_secondary_network = get_mlp(
-            self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims + xyz_encoding.n_output_dims,
-            # self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims, 
-            4 if self.config.pred_vis else 3, 
-            self.config.ref_secondary_network_config
-        )
-        dif_network = get_mlp(
-            self.config.input_feature_dim + xyz_encoding.n_output_dims,
-            3, 
-            self.config.diffuse_network_config
-        )
-        blend_network = get_mlp(
-            self.config.input_feature_dim + xyz_encoding.n_output_dims,
-            1, 
-            self.config.blend_network_config
-        )
-        if self.human_ref:
-            human_encoding = get_encoding(self.n_)
-        self.dir_encoding = dir_encoding
-        self.xyz_encoding = xyz_encoding
-        self.ref_primary_network = ref_primary_network 
-
-        if self.config.secondary_shading:
-            self.ref_secondary_network = ref_secondary_network 
-        else:
-            self.ref_secondary_network = None
-
-        if self.config.reflection_only:
-            self.dif_network = None
-            self.blend_network = None
-        else:
-            self.dif_network = dif_network
-            self.blend_network = blend_network
-
-    def forward(self, features, positions, dirs, *args):
-        if self.config.dir_encoding_config.reflected:
-            normals = args[0]
-            dirs = -2 * torch.sum(dirs * normals, dim=-1, keepdim=True) * normals + dirs
-        dirs = (dirs + 1.) / 2. # (-1, 1) => (0, 1)
-        dirs_embd = self.dir_encoding(dirs.view(-1, dirs.shape[-1]))
-        xyz_embd = self.xyz_encoding(positions.view(-1, positions.shape[-1]))
-        ref_network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        dif_network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
-        blend_network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
-        if self.config.blend_network_config.get("normlized_inp", False):
-            blend_network_inp = F.normalize(blend_network_inp, dim=-1)
-
-        ref_color = self.ref_primary_network(ref_network_inp).view(*features.shape[:-1], 3).float()
-        if 'color_activation' in self.config:
-            ref_color = get_activation(self.config.color_activation)(ref_color)
-        if self.config.reflection_only:
-            dif_color = torch.zeros((*features.shape[:-1], 3), device=dirs.device)
-            blend = torch.zeros((*features.shape[:-1], 1), device=dirs.device)
-        else:
-            dif_color = self.dif_network(dif_network_inp).view(*features.shape[:-1], 3).float()
-            blend = self.blend_network(blend_network_inp).view(*features.shape[:-1], 1).float()
-            if 'color_activation' in self.config:
-                dif_color = get_activation(self.config.color_activation)(dif_color)
-            if 'blend_activation' in self.config:
-                blend = get_activation(self.config.blend_activation)(blend)
-
-        ret = torch.cat([dif_color, ref_color, blend], dim=-1)
-        if self.blend_type == "volume":
-            ret = torch.cat([ret, blend * dif_color + (1 - blend) * ref_color], dim=-1)
-        return ret
-
-    def secondary_shading(self, features, rays_o, rays_d, *args):
-        rays_d = (rays_d + 1.) / 2. # (-1, 1) => (0, 1)
-        xyz_embd = self.xyz_encoding(rays_o.view(-1, self.n_pos_dims))
-        dirs_embd = self.dir_encoding(rays_d.view(-1, self.n_dir_dims))
-        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        color = self.ref_secondary_network(network_inp).view(*network_inp.shape[:-1], 4 if self.config.pred_vis else 3).float()
-        if 'color_activation' in self.config:
-            color = get_activation(self.config.color_activation)(color)
-        return color
-
-    # def secondary_shading(self, rays_o, rays_d, *args):
-    #     rays_d = (rays_d + 1.) / 2. # (-1, 1) => (0, 1)
-    #     dirs_embd = self.dir_encoding(rays_d.view(-1, self.n_dir_dims))
-    #     pos_embd = self.xyz_encoding(rays_o.view(-1, self.n_pos_dims))
-    #     network_inp = torch.cat([pos_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-    #     color = self.ref_secondary_network(network_inp).view(*network_inp.shape[:-1], 3).float()
-    #     if 'color_activation' in self.config:
-    #         color = get_activation(self.config.color_activation)(color)
-    #     return color
-
-    def update_step(self, epoch, global_step):
-        update_module_step(self.dir_encoding, epoch, global_step)
-        update_module_step(self.xyz_encoding, epoch, global_step)
-
-    def regularizations(self, out):
-        visibility_smoothness = out['visibility_smoothness_loss_map'].mean()
-        return {
-            'visibility_smoothness': visibility_smoothness
-        }
-
-@models.register('oa-volume-radiance')
-class OAVolumeRadiance(nn.Module):
-    """
-    Occlusion-aware volume radiance
-    """
-    def __init__(self, config):
-        super(OAVolumeRadiance, self).__init__()
-        self.config = config
-        self.n_dir_dims = self.config.get('n_dir_dims', 3)
-        self.n_pos_dims = self.config.get('n_pos_dims', 3)
-        self.n_output_dims = 3
-        dir_encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        xyz_encoding = get_encoding(self.n_pos_dims, self.config.xyz_encoding_config)
-        self.n_input_dims = self.config.input_feature_dim + dir_encoding.n_output_dims
-        network = get_mlp(self.n_input_dims, self.n_output_dims, self.config.mlp_network_config)
-        self.dir_encoding = dir_encoding
-        self.xyz_encoding = xyz_encoding
-        self.network = network
-        if self.config.secondary_shading:
-            self.secondary_network = get_mlp(3 + xyz_encoding.n_output_dims + dir_encoding.n_output_dims, self.n_output_dims, self.config.secondary_mlp_network_config) # points, 
-
-    def forward(self, features, dirs, *args):
-        if self.config.dir_encoding_config.reflected:
-            normals = args[0]
-            dirs = -2 * torch.sum(dirs * normals, dim=-1, keepdim=True) * normals + dirs
-        dirs = (dirs + 1.) / 2. # (-1, 1) => (0, 1)
-        dirs_embd = self.dir_encoding(dirs.view(-1, self.n_dir_dims))
-        network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        color = self.network(network_inp).view(*features.shape[:-1], self.n_output_dims).float()
-        if 'color_activation' in self.config:
-            color = get_activation(self.config.color_activation)(color)
-        return color
-
-    def secondary_shading(self, rays_o, rays_d, *args):
-        if self.config.secondary_shading:
-            rays_d = (rays_d + 1.) / 2. # (-1, 1) => (0, 1)
-            dirs_embd = self.dir_encoding(rays_d.view(-1, self.n_dir_dims))
-            pos_embd = self.xyz_encoding(rays_o.view(-1, self.n_pos_dims))
-            network_inp = torch.cat([pos_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-            color = self.secondary_network(network_inp).view(*network_inp.shape[:-1], self.n_output_dims).float()
-            if 'color_activation' in self.config:
-                color = get_activation(self.config.color_activation)(color)
-            return color
-        else:
-            return torch.zeros_like(rays_o, device=rays_o.device)
-
-    def update_step(self, epoch, global_step):
-        update_module_step(self.dir_encoding, epoch, global_step)
-        update_module_step(self.xyz_encoding, epoch, global_step)
-
-    def regularizations(self, out):
-        return {}
-
-@models.register('volume-radiance-multi')
-class VolumeRadiance_Multi(nn.Module):
-    def __init__(self, config):
-        super(VolumeRadiance_Multi, self).__init__()
-        self.config = config
-        self.n_dir_dims = self.config.get('n_dir_dims', 3)
-        self.n_output_dims = 3
-        encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        self.n_input_dims = self.config.input_feature_dim + encoding.n_output_dims + self.config.env_embedding.embd_dim
-        network = get_mlp(self.n_input_dims, self.n_output_dims, self.config.mlp_network_config)
-        self.encoding = encoding
-        self.network = network
-        self.embedding = nn.Embedding(num_embeddings=self.config.env_embedding.n_embd, embedding_dim=self.config.env_embedding.embd_dim)
-
-    def forward(self, features, dirs, light_idx, *args):
-        if self.config.dir_encoding_config.reflected:
-            normals = args[0]
-            dirs = 2 * torch.sum(dirs * normals, dim=-1, keepdim=True) * normals - dirs
-        dirs = (dirs + 1.) / 2. # (-1, 1) => (0, 1)
-        dirs_embd = self.encoding(dirs.view(-1, self.n_dir_dims))
-        env_embd = self.embedding(light_idx)
-        network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd, env_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
-        color = self.network(network_inp).view(*features.shape[:-1], self.n_output_dims).float()
-        if 'color_activation' in self.config:
-            color = get_activation(self.config.color_activation)(color)
-        return color
-
-    def update_step(self, epoch, global_step):
-        update_module_step(self.encoding, epoch, global_step)
-
-    def regularizations(self, out):
-        return {}
-
+import nvdiffrast.torch as dr
+import numpy as np
+import torch.nn.functional as F
+# from lib.pbr.utils.warp_utils import coordinate_system, sample_GGX_VNDF, to_world, sample_uniform_cylinder, to_local
 
 @models.register('volume-radiance')
 class VolumeRadiance(nn.Module):
@@ -340,17 +19,13 @@ class VolumeRadiance(nn.Module):
         self.config = config
         self.n_dir_dims = self.config.get('n_dir_dims', 3)
         self.n_output_dims = 3
-        self.n_other_dims = self.config.get('n_other_dims', 0)
         encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        self.n_input_dims = self.config.input_feature_dim + encoding.n_output_dims + self.n_other_dims
+        self.n_input_dims = self.config.input_feature_dim + encoding.n_output_dims
         network = get_mlp(self.n_input_dims, self.n_output_dims, self.config.mlp_network_config)
         self.encoding = encoding
         self.network = network
 
     def forward(self, features, dirs, *args):
-        if self.config.dir_encoding_config.get("reflected", False):
-            normals = args[0]
-            dirs = 2 * torch.sum(dirs * normals, dim=-1, keepdim=True) * normals - dirs
         dirs = (dirs + 1.) / 2. # (-1, 1) => (0, 1)
         dirs_embd = self.encoding(dirs.view(-1, self.n_dir_dims))
         network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
@@ -386,174 +61,478 @@ class VolumeColor(nn.Module):
     def regularizations(self, out):
         return {}
 
+def linear_to_srgb(linear):
+    if isinstance(linear, torch.Tensor):
+        """Assumes `linear` is in [0, 1], see https://en.wikipedia.org/wiki/SRGB."""
+        eps = torch.finfo(torch.float32).eps
+        srgb0 = 323 / 25 * linear
+        srgb1 = (211 * torch.clamp(linear, min=eps) ** (5 / 12) - 11) / 200
+        return torch.where(linear <= 0.0031308, srgb0, srgb1)
+    elif isinstance(linear, np.ndarray):
+        eps = np.finfo(np.float32).eps
+        srgb0 = 323 / 25 * linear
+        srgb1 = (211 * np.maximum(eps, linear) ** (5 / 12) - 11) / 200
+        return np.where(linear <= 0.0031308, srgb0, srgb1)
+    else:
+        raise NotImplementedError
 
-@models.register("tensor-radiance")
-class TensorRadiance(nn.Module):
+
+def srgb_to_linear(srgb):
+    if isinstance(srgb, torch.Tensor):
+        """Assumes `srgb` is in [0, 1], see https://en.wikipedia.org/wiki/SRGB."""
+        eps = torch.finfo(torch.float32).eps
+        linear0 = 25 / 323 * srgb
+        linear1 = torch.clamp(((200 * srgb + 11) / (211)), min=eps) ** (12 / 5)
+        return torch.where(srgb <= 0.04045, linear0, linear1)
+    elif isinstance(srgb, np.ndarray):
+        """Assumes `srgb` is in [0, 1], see https://en.wikipedia.org/wiki/SRGB."""
+        eps = np.finfo(np.float32).eps
+        linear0 = 25 / 323 * srgb
+        linear1 = np.maximum(((200 * srgb + 11) / (211)), eps) ** (12 / 5)
+        return np.where(srgb <= 0.04045, linear0, linear1)
+    else:
+        raise NotImplementedError
+
+@models.register('volume-split-sum-mip-occ')
+class VolumeSplitSumMip(nn.Module):
+
     def __init__(self, config):
-        super(TensorRadiance, self).__init__()
+        super(VolumeSplitSumMip, self).__init__()
         self.config = config
-        self.n_input_dims = self.config.get("n_input_dims", 3)
-        self.n_dir_dims = self.config.get("n_dir_dims", 3)
+        self.n_dir_dims = self.config.get('n_dir_dims', 3)
+        self.n_pos_dims = self.config.get('n_pos_dims', 3)
         self.n_output_dims = 3
-        self.radius = self.config['radius']
-        # TensoRF uses additional PE to encode VM features
-        xyz_encodings = []
-        for conf in self.config.xyz_encoding_config:
-            xyz_encodings.append(get_encoding(conf.args.n_input_dims, conf.args))
-        xyz_encodings = nn.ModuleList(xyz_encodings)
         dir_encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        self.n_feature_dims = (
-            xyz_encodings[-1].n_output_dims
-            + dir_encoding.n_output_dims
-        )
-        network = get_mlp(
-            self.n_feature_dims, self.n_output_dims, self.config.mlp_network_config
-        )
-        self.xyz_encodings = xyz_encodings
+        xyz_encoding = get_encoding(self.n_pos_dims, self.config.xyz_encoding_config)
         self.dir_encoding = dir_encoding
-        self.network = network
-        self.contract_to_unisphere = self.config.get("contract_to_unisphere", True)
+        self.xyz_encoding = xyz_encoding
+        
+        secondary_network = get_mlp(
+            self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims, 
+            3, 
+            self.config.secondary_mlp_network_config
+        )
 
-    def forward(self, x, dirs, *args):
-        if self.contract_to_unisphere:
-            x = contract_to_unisphere(x, self.radius, self.contraction_type)
-        dirs = (dirs + 1.0) / 2.0  # (-1, 1) => (0, 1)
-        xyzs_embd = x
-        for xyz_encoding in self.xyz_encodings:
-            xyzs_embd = xyz_encoding(xyzs_embd)
-        dirs_embd = self.dir_encoding(dirs.view(-1, self.n_dir_dims))
-        network_inp = torch.cat(
-            [xyzs_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args],
-            dim=-1,
+        albedo_network = get_mlp(
+            self.config.input_feature_dim + xyz_encoding.n_output_dims, 
+            3, 
+            self.config.albedo_mlp_network_config
         )
-        color = (
-            self.network(network_inp).view(*x.shape[:-1], self.n_output_dims).float()
+
+        roughness_network = get_mlp(
+            self.config.input_feature_dim + xyz_encoding.n_output_dims, 
+            1, 
+            self.config.roughness_mlp_network_config
         )
-        if "color_activation" in self.config:
+
+        metallic_network = get_mlp(
+            self.config.input_feature_dim + xyz_encoding.n_output_dims, 
+            1, 
+            self.config.metallic_mlp_network_config
+        )
+
+        self.secondary_network = secondary_network
+        self.albedo_network = albedo_network
+        self.roughness_network = roughness_network
+        self.metallic_network = metallic_network
+
+        # precomputed microfacet integration
+        FG_LUT = torch.from_numpy(np.fromfile('load/bsdf/bsdf_256_256.bin', dtype=np.float32).reshape(1, 256, 256, 2))
+        self.register_buffer('FG_LUT', FG_LUT)
+        self.FG_LUT.requires_grad_(False)
+        
+        # self.sample = torch.rand(self.config.sample_size, 2).cuda()
+
+    def forward(self, features, dirs, normals, positions, emitter, *args):
+        if dirs.shape[0] == 0:           
+            return torch.zeros((0, 3)).cuda()
+        wi = -dirs
+        wo = torch.sum(wi * normals, -1, keepdim=True) * normals * 2 - wi
+        NoV = torch.sum(normals * wi, -1, keepdim=True)
+        xyz_embd = self.xyz_encoding(positions.view(-1, self.n_pos_dims))
+        
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
+        
+        albedo = self.albedo_network(network_inp).view(*features.shape[:-1], 3).float()
+
+        roughness = self.roughness_network(network_inp).view(*features.shape[:-1], 1).float()
+        
+        metallic = self.metallic_network(network_inp).view(*features.shape[:-1], 1).float()
+        
+        if 'color_activation' in self.config:
+            albedo = get_activation(self.config.color_activation)(albedo)
+            metallic = get_activation(self.config.color_activation)(metallic)
+            roughness = get_activation(self.config.color_activation)(roughness)
+
+        diffuse_albedo = (1 - metallic) * albedo
+        diffuse_light = emitter.eval_mip(normals)
+        diff_rgb_pbr = diffuse_albedo * diffuse_light
+
+            
+        specular_albedo = 0.04 * (1 - metallic) + metallic * albedo
+        specular_light = emitter.eval_mip(wo, specular=True, roughness=roughness)
+            
+        fg_uv = torch.cat([torch.clamp(NoV, min=0.0, max=1.0), torch.clamp(roughness, min=0.0, max=1.0)], -1)
+        pn, bn = dirs.shape[0], 1
+        fg_lookup = dr.texture(self.FG_LUT, fg_uv.reshape(1, pn // bn, bn, fg_uv.shape[-1]).contiguous(), filter_mode='linear',
+                            boundary_mode='clamp').reshape(pn, 2)
+        specular_ref = (specular_albedo * fg_lookup[:, 0:1] + fg_lookup[:, 1:2])
+        spec_rgb_pbr = specular_ref * specular_light
+        return torch.cat([diff_rgb_pbr, spec_rgb_pbr, specular_ref, specular_light, albedo, metallic, roughness], dim=-1)
+
+    def secondary_shading(self, features, rays_d, *args):
+        rays_d = (rays_d + 1.) / 2. # (-1, 1) => (0, 1)
+        dirs_embd = self.dir_encoding(rays_d.view(-1, self.n_dir_dims))
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
+        color = self.secondary_network(network_inp).view(*network_inp.shape[:-1], self.n_output_dims).float()
+        if 'color_activation' in self.config:
             color = get_activation(self.config.color_activation)(color)
         return color
 
+    def secondary_shading_pbr(self, features, dirs, normals, positions, emitter):
+        if dirs.shape[0] == 0:           
+            return torch.zeros((0, 3)).cuda()
+        
+        wi = -dirs
+        wo = torch.sum(wi * normals, -1, keepdim=True) * normals * 2 - wi
+        NoV = torch.sum(normals * wi, -1, keepdim=True)
+        
+        xyz_embd = self.xyz_encoding(positions.view(-1, self.n_pos_dims))
+        
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
+        albedo = self.albedo_network(network_inp).view(*features.shape[:-1], 3).float()
+        roughness = self.roughness_network(network_inp).view(*features.shape[:-1], 1).float()
+        metallic = self.metallic_network(network_inp).view(*features.shape[:-1], 1).float()
+        
+        if 'color_activation' in self.config:
+            albedo = get_activation(self.config.color_activation)(albedo)
+            metallic = get_activation(self.config.color_activation)(metallic)
+            roughness = get_activation(self.config.color_activation)(roughness)
+
+        diffuse_albedo = (1 - metallic) * albedo
+        diffuse_light = emitter.eval_mip(normals)
+        diff_rgb_pbr = diffuse_albedo * diffuse_light
+
+            
+        specular_albedo = 0.04 * (1 - metallic) + metallic * albedo
+        specular_light = emitter.eval_mip(dirs, specular=True, roughness=roughness)
+        fg_uv = torch.cat([torch.clamp(NoV, min=0.0, max=1.0), torch.clamp(roughness, min=0.0, max=1.0)], -1)
+        pn, bn = dirs.shape[0], 1
+        fg_lookup = dr.texture(self.FG_LUT, fg_uv.reshape(1, pn // bn, bn, fg_uv.shape[-1]).contiguous(), filter_mode='linear',
+                            boundary_mode='clamp').reshape(pn, 2)
+        specular_ref = (specular_albedo * fg_lookup[:, 0:1] + fg_lookup[:, 1:2])
+        spec_rgb_pbr = specular_ref * specular_light
+        return diff_rgb_pbr + spec_rgb_pbr
+    
     def update_step(self, epoch, global_step):
-        for xyz_encoding in self.xyz_encodings:
-            update_module_step(xyz_encoding, epoch, global_step)
         update_module_step(self.dir_encoding, epoch, global_step)
+        update_module_step(self.xyz_encoding, epoch, global_step)
 
     def regularizations(self, out):
         return {}
 
+@models.register('volume-mixed-mip-split-occ')
+class VolumeMixedMipSplitOcc(nn.Module):
 
-@models.register("tensoir-appearance")
-class TensoIRAppearance(nn.Module):
     def __init__(self, config):
-        super(TensoIRAppearance, self).__init__()
+        super(VolumeMixedMipSplitOcc, self).__init__()
         self.config = config
-        self.n_input_dims = self.config.get("n_input_dims", 3)
-        self.n_dir_dims = self.config.get("n_dir_dims", 3)
+        self.n_dir_dims = self.config.get('n_dir_dims', 3)
+        self.n_pos_dims = self.config.get('n_pos_dims', 3)
         self.n_output_dims = 3
-        self.radius = self.config['radius']
-        # TensoIR uses additional PE to encode VM features
-        xyz_encodings = []
-        for conf in self.config.xyz_encoding_config:
-            xyz_encodings.append(get_encoding(conf.args.n_input_dims, conf.args))
-        xyz_encodings = nn.ModuleList(xyz_encodings)
-        pos_encoding = get_encoding(self.n_input_dims, self.config.pos_encoding_config)
         dir_encoding = get_encoding(self.n_dir_dims, self.config.dir_encoding_config)
-        self.n_rf_feature_dims = (
-            xyz_encodings[-1].n_output_dims
-            + dir_encoding.n_output_dims
-        )
-        self.n_intrinsic_feature_dims = (
-            xyz_encodings[-1].n_output_dims
-            + pos_encoding.n_output_dims
-        )
-        radiance_network = get_mlp(
-            self.n_rf_feature_dims,
-            self.config.radiance_mlp_network_config.n_output_dims,
-            self.config.radiance_mlp_network_config,
-        )
-        normal_network = get_mlp(
-            self.n_intrinsic_feature_dims,
-            self.config.normal_mlp_network_config.n_output_dims,
-            self.config.normal_mlp_network_config,
-        )
-        material_network = get_mlp(
-            self.n_intrinsic_feature_dims,
-            self.config.material_mlp_network_config.n_output_dims,
-            self.config.material_mlp_network_config,
-        )
-        self.xyz_encodings = xyz_encodings
-        self.pos_encoding = pos_encoding
+        xyz_encoding = get_encoding(self.n_pos_dims, self.config.xyz_encoding_config)
         self.dir_encoding = dir_encoding
-        self.radiance_network = radiance_network
-        self.normal_network = normal_network
-        self.material_network = material_network
-        self.contract_to_unisphere = self.config.get("contract_to_unisphere", True)
-
-    def forward(
-        self, x, dirs, with_radiance=False, with_normal=False, with_mats=False, *args
-    ):
-        if self.contract_to_unisphere:
-            x = contract_to_unisphere(x, self.radius, self.contraction_type)
-        dirs = (dirs + 1.0) / 2.0  # (-1, 1) => (0, 1)
-        xyzs_embd = x
-        for xyz_encoding in self.xyz_encodings:
-            xyzs_embd = xyz_encoding(xyzs_embd)
-        dirs_embd = self.dir_encoding(dirs.view(-1, self.n_dir_dims))
-        pos_embd = self.pos_encoding(x.view(-1, self.n_input_dims))
-        rf_inp = torch.cat(
-            [xyzs_embd, dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args],
-            dim=-1,
+        self.xyz_encoding = xyz_encoding
+        
+        secondary_network = get_mlp(
+            self.config.input_feature_dim + self.config.other_dim + dir_encoding.n_output_dims, 
+            3, 
+            self.config.secondary_mlp_network_config
         )
-        intrinsic_inp = torch.cat(
-            [xyzs_embd, pos_embd] + [arg.view(-1, arg.shape[-1]) for arg in args],
-            dim=-1,
+
+        albedo_network = get_mlp(
+            self.config.input_feature_dim + xyz_encoding.n_output_dims, 
+            6, 
+            self.config.albedo_mlp_network_config
         )
-        out = []
-        if with_radiance:
-            radiance = (
-                self.radiance_network(rf_inp)
-                .view(*x.shape[:-1], self.config.radiance_mlp_network_config.n_output_dims)
-                .float()
-            )
-            out += [radiance]
-        if with_normal:
-            normal = (
-                self.normal_network(intrinsic_inp)
-                .view(*x.shape[:-1], self.config.normal_mlp_network_config.n_output_dims)
-                .float()
-            )
-            out += [normal]
-        if with_mats:
-            material = (
-                self.material_network(intrinsic_inp)
-                .view(
-                    *x.shape[:-1], self.config.material_mlp_network_config.n_output_dims
-                )
-                .float()
-            )
-            out += [material]
 
-        return tuple(out) if len(out) > 1 else out[0]
+        roughness_network = get_mlp(
+            self.config.input_feature_dim + xyz_encoding.n_output_dims, 
+            1, 
+            self.config.roughness_mlp_network_config
+        )
+        
+        env_network = get_mlp(
+            self.config.input_feature_dim + dir_encoding.n_output_dims, 
+            3, 
+            self.config.spec_mlp_network_config
+        )
 
-    def get_radiance(self, feature):
-        return self.radiance_network(feature).view(*feature.shape[:-1], self.config.radiance_mlp_network_config.n_output_dims).float()
+        metallic_network = get_mlp(
+            self.config.input_feature_dim + xyz_encoding.n_output_dims, 
+            2, 
+            self.config.metallic_mlp_network_config
+        )
 
-    def get_normal(self, feature):
-        return self.normal_network(feature).view(*feature.shape[:-1], self.config.normal_mlp_network_config.n_output_dims).float()
+        self.secondary_network = secondary_network
+        self.albedo_network = albedo_network
+        self.roughness_network = roughness_network
+        self.metallic_network = metallic_network
+        self.env_network = env_network
 
-    def get_material(self, feature):
-        return self.material_network(feature).view(*feature.shape[:-1], self.config.material_mlp_network_config.n_output_dims).float()
+        # precomputed microfacet integration
+        FG_LUT = torch.from_numpy(np.fromfile('load/bsdf/bsdf_256_256.bin', dtype=np.float32).reshape(1, 256, 256, 2))
+        self.register_buffer('FG_LUT', FG_LUT)
+        self.FG_LUT.requires_grad_(False)
+        
+        # self.sample = torch.rand(self.config.sample_size, 2).cuda()
+        
+    
+    def forward(self, features, dirs, normals, positions, emitter, stage = 0, *args):
+        if dirs.shape[0] == 0:           
+            return torch.zeros((0, 3)).cuda()
+        wi = -dirs
+        wo = torch.sum(wi * normals, -1, keepdim=True) * normals * 2 - wi
+        NoV = torch.sum(normals * wi, -1, keepdim=True)
+        xyz_embd = self.xyz_encoding(positions.view(-1, self.n_pos_dims))
+        
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
+        
+        albedo = self.albedo_network(network_inp).view(*features.shape[:-1], 6).float()
+        diff_rgb = albedo[..., :3]
+        albedo = albedo[..., 3:]
 
+        roughness = self.roughness_network(network_inp).view(*features.shape[:-1], 1).float()
+        
+        metallic = self.metallic_network(network_inp).view(*features.shape[:-1], 2).float()
+        blend = metallic[..., :1]
+        metallic = metallic[..., 1:]
+
+        wo_enc = self.dir_encoding(((wo + 1.) / 2.).view(-1, self.n_dir_dims))
+        env_network_inp = torch.cat([features, wo_enc], dim=-1)
+        spec_rgb = self.env_network(env_network_inp).view(*features.shape[:-1], 3).float()
+        
+        if 'color_activation' in self.config:
+            albedo = get_activation(self.config.color_activation)(albedo)
+            diff_rgb = get_activation(self.config.color_activation)(diff_rgb)
+            blend = get_activation(self.config.color_activation)(blend)
+            metallic = get_activation(self.config.color_activation)(metallic)
+            roughness = get_activation(self.config.color_activation)(roughness)
+            spec_rgb = get_activation(self.config.color_activation)(spec_rgb)
+        spec_rgb = blend * spec_rgb
+        diff_rgb = (1 - blend) * diff_rgb
+
+        if stage == 0:
+            return torch.cat([diff_rgb, spec_rgb, blend], dim=-1)
+
+        diffuse_albedo = (1 - metallic) * albedo
+        diffuse_light = emitter.eval_mip(normals)
+       
+        diff_rgb_pbr = diffuse_albedo * diffuse_light
+
+            
+        specular_albedo = 0.04 * (1 - metallic) + metallic * albedo
+        specular_light = emitter.eval_mip(wo, specular=True, roughness=roughness)
+            
+        fg_uv = torch.cat([torch.clamp(NoV, min=0.0, max=1.0), torch.clamp(roughness, min=0.0, max=1.0)], -1)
+        pn, bn = dirs.shape[0], 1
+        fg_lookup = dr.texture(self.FG_LUT, fg_uv.reshape(1, pn // bn, bn, fg_uv.shape[-1]).contiguous(), filter_mode='linear',
+                            boundary_mode='clamp').reshape(pn, 2)
+        specular_ref = (specular_albedo * fg_lookup[:, 0:1] + fg_lookup[:, 1:2])
+        spec_rgb_pbr = specular_ref * specular_light
+        # return torch.cat([diff_rgb, spec_rgb, blend, diff_rgb_pbr, spec_rgb_pbr, albedo, metallic, roughness], dim=-1)
+        return torch.cat([diff_rgb, spec_rgb, blend, diff_rgb_pbr, spec_rgb_pbr, specular_ref, specular_light, albedo, metallic, roughness], dim=-1)
+
+    def secondary_shading(self, features, rays_d, *args):
+        rays_d = (rays_d + 1.) / 2. # (-1, 1) => (0, 1)
+        dirs_embd = self.dir_encoding(rays_d.view(-1, self.n_dir_dims))
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), dirs_embd] + [arg.view(-1, arg.shape[-1]) for arg in args], dim=-1)
+        color = self.secondary_network(network_inp).view(*network_inp.shape[:-1], self.n_output_dims).float()
+        if 'color_activation' in self.config:
+            color = get_activation(self.config.color_activation)(color)
+        return color
+
+    def secondary_shading_radiance(self, features, dirs, normals, positions):
+        if dirs.shape[0] == 0:           
+            return torch.zeros((0, 3)).cuda()
+        wi = -dirs
+        wo = torch.sum(wi * normals, -1, keepdim=True) * normals * 2 - wi
+        NoV = torch.sum(normals * wi, -1, keepdim=True)
+        xyz_embd = self.xyz_encoding(positions.view(-1, self.n_pos_dims))
+        
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
+        
+        albedo = self.albedo_network(network_inp).view(*features.shape[:-1], 6).float()
+        diff_rgb = albedo[..., :3]
+        
+        metallic = self.metallic_network(network_inp).view(*features.shape[:-1], 2).float()
+        blend = metallic[..., :1]
+
+        wo_enc = self.dir_encoding(((wo + 1.) / 2.).view(-1, self.n_dir_dims))
+        env_network_inp = torch.cat([features, wo_enc], dim=-1)
+        spec_rgb = self.env_network(env_network_inp).view(*features.shape[:-1], 3).float()
+        
+        if 'color_activation' in self.config:
+            diff_rgb = get_activation(self.config.color_activation)(diff_rgb)
+            blend = get_activation(self.config.color_activation)(blend)
+            spec_rgb = get_activation(self.config.color_activation)(spec_rgb)
+
+        spec_rgb = blend * spec_rgb
+        diff_rgb = (1 - blend) * diff_rgb
+
+        return diff_rgb + spec_rgb
+
+    def secondary_shading_pbr(self, features, dirs, normals, positions, emitter):
+        if dirs.shape[0] == 0:           
+            return torch.zeros((0, 3)).cuda()
+        
+        wi = -dirs
+        wo = torch.sum(wi * normals, -1, keepdim=True) * normals * 2 - wi
+        NoV = torch.sum(normals * wi, -1, keepdim=True)
+        
+        xyz_embd = self.xyz_encoding(positions.view(-1, self.n_pos_dims))
+        
+        network_inp = torch.cat([features.view(-1, features.shape[-1]), xyz_embd], dim=-1)
+        
+        albedo = self.albedo_network(network_inp).view(*features.shape[:-1], 6).float()
+        albedo = albedo[..., 3:]
+
+        roughness = self.roughness_network(network_inp).view(*features.shape[:-1], 1).float()
+        
+        metallic = self.metallic_network(network_inp).view(*features.shape[:-1], 2).float()
+        metallic = metallic[..., 1:]
+        
+        if 'color_activation' in self.config:
+            albedo = get_activation(self.config.color_activation)(albedo)
+            metallic = get_activation(self.config.color_activation)(metallic)
+            roughness = get_activation(self.config.color_activation)(roughness)
+
+        diffuse_albedo = (1 - metallic) * albedo
+        diffuse_light = emitter.eval_mip(normals)
+       
+        diff_rgb_pbr = diffuse_albedo * diffuse_light
+
+            
+        specular_albedo = 0.04 * (1 - metallic) + metallic * albedo
+        specular_light = emitter.eval_mip(dirs, specular=True, roughness=roughness)
+            
+        fg_uv = torch.cat([torch.clamp(NoV, min=0.0, max=1.0), torch.clamp(roughness, min=0.0, max=1.0)], -1)
+        pn, bn = dirs.shape[0], 1
+        fg_lookup = dr.texture(self.FG_LUT, fg_uv.reshape(1, pn // bn, bn, fg_uv.shape[-1]).contiguous(), filter_mode='linear',
+                            boundary_mode='clamp').reshape(pn, 2)
+        specular_ref = (specular_albedo * fg_lookup[:, 0:1] + fg_lookup[:, 1:2])
+        spec_rgb_pbr = specular_ref * specular_light
+
+        return diff_rgb_pbr + spec_rgb_pbr
+    
     def update_step(self, epoch, global_step):
-        for xyz_encoding in self.xyz_encodings:
-            update_module_step(xyz_encoding, epoch, global_step)
         update_module_step(self.dir_encoding, epoch, global_step)
+        update_module_step(self.xyz_encoding, epoch, global_step)
 
     def regularizations(self, out):
-        reg_dict = {}
-        for xyz_encoding in self.xyz_encodings:
-            if hasattr(xyz_encoding, 'regularizations'):
-                for k, v in xyz_encoding.regularizations().items():
-                    reg_dict[k + '_app'] = v
+        return {}
 
-        return reg_dict
+@models.register('volume-pbr')
+class VolumePBR(nn.Module):
+
+    def __init__(self, config):
+        super(VolumePBR, self).__init__()
+        self.config = config
+        self.n_dir_dims = self.config.get('n_dir_dims', 3)
+        self.n_output_dims = 3
+
+        self.scatterer = models.make(self.config.scatterer.name, self.config.scatterer)
+
+    def forward_mats(self, positions, dirs, normals, 
+                     albedo, roughness, metallic, 
+                     emitter, compute_indirect):
+        wi = -dirs
+        
+        attenuation = torch.zeros_like(roughness)
+        with torch.no_grad():
+            # Scatterer sampling
+            secondary_rays_d = self.scatterer.sample(
+                n=normals,
+                wi=wi,
+                alpha_x=roughness.squeeze(-1),
+                alpha_y=roughness.squeeze(-1),
+                albedo=albedo,
+                metallic=metallic,
+                attenuation=attenuation,
+            )
+            secondary_rays_o = positions.reshape(-1, 3)
+            secondary_tr, secondary_rgb_map = compute_indirect(
+                secondary_rays_o,
+                secondary_rays_d,
+            )
+        pdf = self.scatterer.pdf(
+            n=normals,
+            wi=wi,
+            wo=secondary_rays_d,
+            alpha_x=roughness.squeeze(-1),
+            alpha_y=roughness.squeeze(-1),
+            albedo=albedo,
+            metallic=metallic,
+            attenuation=attenuation,
+        )
+        pdf = torch.where(pdf > 0, pdf, torch.ones_like(pdf))
+        diff, spec = self.scatterer.eval(
+            wi=wi,
+            n=normals,
+            wo=secondary_rays_d,
+            alpha_x=roughness.squeeze(-1),
+            alpha_y=roughness.squeeze(-1),
+            albedo=albedo,
+            metallic=metallic,
+            attenuation=attenuation,
+        )
+        em_li = emitter.eval(secondary_rays_d)
+        if self.config.global_illumination:
+            Li = em_li * secondary_tr + secondary_rgb_map
+        else:
+            Li = em_li * secondary_tr
+        Lo_diff = Li * diff / pdf
+        Lo_spec = Li * spec / pdf
+        
+        if metallic.size(-1) == 1:
+            kd = (1.0 - metallic) * albedo
+            ks = torch.ones_like(kd)
+        else:
+            kd = albedo
+            ks = metallic
+
+        Lo_diff = kd * Lo_diff
+        Lo_spec = ks * Lo_spec
+        Lo =  Lo_diff + Lo_spec
+
+        return Lo, Lo_diff, Lo_spec
+        
+    def forward(self, 
+                positions, dirs, normals, 
+                albedo, roughness, metallic, 
+                compute_indirect, emitter,
+                *args):
+        results = {}
+        if dirs.shape[0] == 0:
+            results.update({
+                'rgb_phys':   torch.zeros((0, 3)).cuda(),
+                'specular_color': torch.zeros((0, 3)).cuda(),
+                'diffuse_color': torch.zeros((0, 3)).cuda(),
+            })
+            return results
+    
+        Lo, Lo_diff, Lo_spec = self.forward_mats(positions, dirs, normals, 
+                                                 albedo, roughness, metallic, 
+                                                 emitter, compute_indirect)
+        results.update({
+            'rgb_phys':  Lo,
+            'specular_color': Lo_spec,
+            'diffuse_color': Lo_diff
+        })
+        
+        return results
+
+    def regularizations(self, out):
+        return {}
+    

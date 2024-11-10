@@ -158,32 +158,24 @@ def binary_cross_entropy(input, target):
     """
     return -(target * torch.log(input) + (1 - target) * torch.log(1 - input)).mean()
 
-def InitSDFRegLoss(sdf_vals, sdf_pts):
+def MAE(inputs, targets, mask):
     """
-    Loss for stabilizing co-convergence of foreground and background NeRF. https://github.com/liuyuan-pal/NeRO
+    Mean angular error. https://github.com/half-potato/nmf/blob/main/scripts/reeval_norm_err.ipynb
+
+    Args:
+    - inputs: Tensor [B, C, H, W]. Predicted normals in [-1, 1]^3.
+    - targets: Tensor [B, C, H, W]. G.T. normals in [-1, 1]^3.
+    - mask: Tensor [B, H, W]. G.T. alpha values (4th channel of G.T. images).
+
+    Returns:
+    - mae: float. Mean angular error.
+
+    Note:
+        inputs and targets could be batchwise, i.e. [B, H, W, 3]
+        mask should also be batchwise, i.e. [B, H, W]
     """
+    angular_error = torch.arccos((inputs*targets).sum(dim=1).clamp(1e-8, 1-1e-8)) * 180/torch.pi
+    angular_error[torch.isnan(angular_error)] = 0
+    angular_error *= mask
 
-    small_threshold = 0.1
-    large_threshold = 1.05
-
-    norm = torch.norm(sdf_pts, dim=-1)
-    sdf = sdf_vals
-    small_mask = norm<small_threshold
-    if torch.sum(small_mask)>0:
-        bounds = norm[small_mask] - small_threshold # 0-small_threshold -> 0
-        # we want sdf - bounds < 0
-        small_loss = torch.mean(torch.clamp(sdf[small_mask] - bounds, min=0.0))
-        small_loss = torch.sum(small_loss) / (torch.sum(small_loss > 1e-5) + 1e-3)
-    else:
-        small_loss = torch.zeros(1, device=sdf_vals.device)
-
-    large_mask = norm > large_threshold
-    if torch.sum(large_mask)>0:
-        bounds = norm[large_mask] - large_threshold # 0 -> 1 - large_threshold
-        # we want sdf - bounds > 0 => bounds - sdf < 0
-        large_loss = torch.clamp(bounds - sdf[large_mask], min=0.0)
-        large_loss = torch.sum(large_loss) / (torch.sum(large_loss > 1e-5) + 1e-3)
-    else:
-        large_loss = torch.zeros(1, device=sdf_vals.device)
-
-    return small_loss.mean(), large_loss.mean(), sdf[small_mask].mean(), sdf[large_mask].mean()
+    return torch.sum(angular_error, dim=(-1, -2)) / torch.sum(mask, dim=(-1, -2))
