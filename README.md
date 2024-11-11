@@ -70,7 +70,7 @@ git clone --recursive git@github.com:dehezhang2/RISE-SDF.git
 
 * Download the [pre-integrated BSDF](https://github.com/liuyuan-pal/NeRO/blob/main/assets/bsdf_256_256.bin) into the `./load/bsdf/` folder.
 * Download the environment maps from [TensorIR Dataset](https://drive.google.com/file/d/10WLc4zk2idf4xGb6nPL43OXTTHvAXSR3/view) into the `./load/` folder.
-* Download [Shiny Inverse Rendering Dataset](https://drive.google.com/drive/folders/1ZTEPvLppwzxEChKz7q0tHOCq62sPmkBt?usp=drive_link), save the files to the `./load/TensoIR_synthetic/ ` folder. 
+* Download [Shiny Inverse Rendering Dataset](https://drive.google.com/drive/folders/1991eNN5-bMWK7aEHf99VU_iGZsH6FnAc?usp=drive_link), save the files to the `./load/TensoIR_synthetic/ ` folder. 
 
 ## Physically Based Inverse Rendering (PBIR)
 
