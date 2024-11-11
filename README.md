@@ -1,5 +1,5 @@
 # RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy Object Inverse Rendering
-## [Paper](https://www.arxiv.org/pdf/2409.20140)|[Project Page](https://dehezhang2.github.io/RISE-SDF/)|[Dataset](https://drive.google.com/drive/folders/1ZTEPvLppwzxEChKz7q0tHOCq62sPmkBt?usp=drive_link)
+## [Paper](https://www.arxiv.org/pdf/2409.20140)|[Project Page](https://dehezhang2.github.io/RISE-SDF/)|[Dataset](https://drive.google.com/drive/folders/1991eNN5-bMWK7aEHf99VU_iGZsH6FnAc?usp=drive_link)
 
 ​          ![teaser](./assets/teaser-1731247366796-2.gif)
 
@@ -9,7 +9,7 @@ You can find detailed usage instructions for training your own models below.
 
 If you find our code useful, please cite:
 
-```
+```latex
 @misc{zhang2024risesdfrelightableinformationsharedsigned,
 	title={RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy Object Inverse Rendering}, 
 	author={Deheng Zhang and Jingyu Wang and Shaofei Wang and Marko Mihajlovic and Sergey Prokudin and Hendrik P. A. Lensch and Siyu Tang},
@@ -28,7 +28,7 @@ If you find our code useful, please cite:
 ### Install
 
 ```bash
-git clone --recursive git@github.com:dehezhang2/instant-nsr-pbr-glossy.git
+git clone --recursive git@github.com:dehezhang2/RISE-SDF.git
 ```
 ### Environments
 
@@ -82,7 +82,8 @@ Run the launch script with `--train`, specifying the config file, the GPU(s) to 
 # on Shiny Inverse Rendering Dataset
 python launch.py --config configs/split-mixed-occ-tensoir.yaml --gpu 0 --train dataset.scene=toaster_disney 
 ```
-The code snapshots, checkpoints, and experiment outputs are saved to `exp/[name]/[tag]@[timestamp]`. You can change any configuration in the YAML file by specifying arguments without `--`, for example:
+The config snapshots, checkpoints, and experiment outputs are saved to `exp/[name]/[tag]@[timestamp]`. You can change any configuration in the YAML file by specifying arguments without `--`, for example:
+
 ```bash
 python launch.py --config configs/split-mixed-occ-tensoir.yaml --gpu 0 --train dataset.scene=toaster_disney tag=iter50k seed=0 trainer.max_steps=50000
 ```
@@ -90,6 +91,7 @@ python launch.py --config configs/split-mixed-occ-tensoir.yaml --gpu 0 --train d
 ### Relighting (modify to per-scene script later)
 
 The training procedure is by default followed by testing, which computes metrics on test data, generates animations, and exports the geometry as triangular meshes. If you want to do testing alone, just resume the pre-trained model and replace `--train` with `--test`, for example:
+
 ```bash
 python launch.py --config exp/split-mixed-occ-tensoir-toaster_disney/your_experiment_directory/config/parsed.yaml --resume exp/split-mixed-occ-tensoir-toaster_disney/your_experiment_directory/ckpt/epoch\=0-step\=40000.ckpt --gpu 0 --test models.phys_kick_in_step=0
 ```

@@ -5,7 +5,7 @@ seed: 42
 dataset:
   name: tensoir
   scene: ???
-  root_dir: ../instant-inv-glossy/load/TensoIR_Synthetic/${dataset.scene}
+  root_dir: ./load/TensoIR_Synthetic/${dataset.scene}
   img_wh:
     - 800
     - 800
@@ -198,9 +198,3 @@ trainer:
   limit_val_batches: 3
   enable_progress_bar: true 
   precision: 32
-
-# logger:
-#   project: instant-nsr-pbr
-#   entity: dehezhang2
-#   id: null
-#   offline: false

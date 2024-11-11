@@ -45,7 +45,7 @@ def main():
     from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor
     # from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
     from pytorch_lightning.loggers import CSVLogger
-    from utils.callbacks import CodeSnapshotCallback, ConfigSnapshotCallback, CustomProgressBar
+    from utils.callbacks import ConfigSnapshotCallback, CustomProgressBar
     from utils.misc import load_config
 
     # parse YAML config to OmegaConf
@@ -57,7 +57,6 @@ def main():
     config.log_dir = config.get('log_dir') or os.path.join(config.exp_dir, config.trial_name, 'log')
     config.save_dir = config.get('save_dir') or os.path.join(config.exp_dir, config.trial_name, 'save')
     config.ckpt_dir = config.get('ckpt_dir') or os.path.join(config.exp_dir, config.trial_name, 'ckpt')
-    config.code_dir = config.get('code_dir') or os.path.join(config.exp_dir, config.trial_name, 'code')
     config.config_dir = config.get('config_dir') or os.path.join(config.exp_dir, config.trial_name, 'config')
 
 
@@ -76,9 +75,6 @@ def main():
                 **config.checkpoint
             ),
             LearningRateMonitor(logging_interval='step'),
-            CodeSnapshotCallback(
-                config.code_dir, use_version=False
-            ),
             ConfigSnapshotCallback(
                 config, config.config_dir, use_version=False
             ),
