@@ -383,7 +383,6 @@ class SplitOccSystem(BaseSystem):
                     {'type': 'rgb', 'img': batch['albedo'].view(H, W, 3), 'kwargs': {'data_format': 'HWC'}},
                     {'type': 'rgb', 'img': albedo_map.view(H, W, 3), 'kwargs': {'data_format': 'HWC'}},
                 ])
-            
             if self.config.dataset.has_roughness:
                 # Apply alighment of the roughness
                 roughness_map = out['comp_roughness'].to(batch['roughness'])
@@ -500,13 +499,13 @@ class SplitOccSystem(BaseSystem):
             psnr = torch.mean(torch.stack([o['psnr'] for o in out_set.values()]))
             self.log('test/psnr', psnr, prog_bar=True, rank_zero_only=True)    
             
-            # self.save_img_sequence(
-            #     f"it{self.global_step}-test",
-            #     f"it{self.global_step}-test",
-            #     '(\d+)\.png',
-            #     save_format='mp4',
-            #     fps=30
-            # )
+            self.save_img_sequence(
+                f"it{self.global_step}-test",
+                f"it{self.global_step}-test",
+                '(\d+)\.png',
+                save_format='mp4',
+                fps=30
+            )
 
             if self.model.stage != 0:
                 phys_psnr = torch.mean(torch.stack([o['phys_psnr'] for o in out_set.values()]))

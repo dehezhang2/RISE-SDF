@@ -23,7 +23,7 @@ dataset:
   hdr_filepath: ./load/high_res_envmaps_2k/
   has_albedo: true
   albedo_format: 'exr'
-  has_roughness: false
+  has_roughness: true
   roughness_format: 'exr'
   
 
