@@ -437,10 +437,13 @@ class SplitOccSystem(BaseSystem):
                 'phys_psnr': phys_psnr,
                 'phys_ssim': phys_ssim,
                 'phys_lpips': phys_lpips,
-                'relight_psnr': relight_psnr,
-                'relight_ssim': relight_ssim,
-                'relight_lpips': relight_lpips,
             })
+            if len(self.config.dataset.relight_list) != 0:
+                res.update({
+                    'relight_psnr': relight_psnr,
+                    'relight_ssim': relight_ssim,
+                    'relight_lpips': relight_lpips,
+                })
             if self.config.dataset.has_albedo:
                  res.update({
                     'albedo_psnr': albedo_psnr,
@@ -474,9 +477,9 @@ class SplitOccSystem(BaseSystem):
                         'albedo_ssim': step_out['albedo_ssim'] if self.model.stage != 0 and self.config.dataset.has_albedo else 0,
                         'albedo_lpips': step_out['albedo_lpips'] if self.model.stage != 0 and self.config.dataset.has_albedo else 0,
                         'roughness_psnr': step_out['roughness_psnr'] if self.model.stage != 0 and self.config.dataset.has_roughness else 0,
-                        'relight_psnr': step_out['relight_psnr'] if self.model.stage != 0 else 0,
-                        'relight_ssim': step_out['relight_ssim'] if self.model.stage != 0 else 0,
-                        'relight_lpips': step_out['relight_lpips'] if self.model.stage != 0 else 0
+                        'relight_psnr': step_out['relight_psnr'] if self.model.stage != 0 and len(self.config.dataset.relight_list)!=0 else 0,
+                        'relight_ssim': step_out['relight_ssim'] if self.model.stage != 0 and len(self.config.dataset.relight_list)!=0 else 0,
+                        'relight_lpips': step_out['relight_lpips'] if self.model.stage != 0 and len(self.config.dataset.relight_list)!=0 else 0
                     }
                 # DDP
                 else:
@@ -490,9 +493,9 @@ class SplitOccSystem(BaseSystem):
                             'albedo_ssim': step_out['albedo_ssim'][oi] if self.model.stage != 0 and self.config.dataset.has_albedo else 0,
                             'albedo_lpips': step_out['albedo_lpips'][oi] if self.model.stage != 0 and self.config.dataset.has_albedo else 0,
                             'roughness_psnr': step_out['roughness_psnr'][oi] if self.model.stage != 0 and self.config.dataset.has_roughness else 0,
-                            'relight_psnr': step_out['relight_psnr'][oi] if self.model.stage != 0 else 0,
-                            'relight_ssim': step_out['relight_ssim'][oi] if self.model.stage != 0 else 0,
-                            'relight_lpips': step_out['relight_lpips'][oi] if self.model.stage != 0 else 0,
+                            'relight_psnr': step_out['relight_psnr'][oi] if self.model.stage != 0 and len(self.config.dataset.relight_list)!=0 else 0,
+                            'relight_ssim': step_out['relight_ssim'][oi] if self.model.stage != 0 and len(self.config.dataset.relight_list)!=0 else 0,
+                            'relight_lpips': step_out['relight_lpips'][oi] if self.model.stage != 0 and len(self.config.dataset.relight_list)!=0 else 0,
                         }
             
 
