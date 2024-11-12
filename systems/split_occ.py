@@ -91,13 +91,13 @@ class SplitOccSystem(BaseSystem):
             
             if stage in ['test']:
                 if self.config.dataset.has_albedo:
-                    albedo = self.dataset.all_albedo[index].view(-1, self.dataset.all_albedo.shape[-1]).to(self.rank)
+                    albedo = self.dataset.all_albedo[index.to(self.dataset.all_albedo.device)].view(-1, self.dataset.all_albedo.shape[-1]).to(self.rank)
                 if self.config.dataset.has_roughness:
-                    roughness = self.dataset.all_roughness[index].view(-1, self.dataset.all_roughness.shape[-1]).to(self.rank)
-                normal = self.dataset.all_normals[index].view(-1, self.dataset.all_normals.shape[-1]).to(self.rank)
+                    roughness = self.dataset.all_roughness[index.to(self.dataset.all_roughness.device)].view(-1, self.dataset.all_roughness.shape[-1]).to(self.rank)
+                normal = self.dataset.all_normals[index.to(self.dataset.all_normals.device)].view(-1, self.dataset.all_normals.shape[-1]).to(self.rank)
                 relight_rgb = {}
                 for light in self.config.dataset.relight_list:
-                    relight_rgb[light] = self.dataset.relight_images[light][index].view(-1, self.dataset.all_images.shape[-1]).to(self.rank)
+                    relight_rgb[light] = self.dataset.relight_images[light][index.to(self.dataset.all_normals.device)].view(-1, self.dataset.all_images.shape[-1]).to(self.rank)
                 
 
         rays = torch.cat([rays_o, F.normalize(rays_d, p=2, dim=-1)], dim=-1)
