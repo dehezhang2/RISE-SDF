@@ -4,7 +4,7 @@ import shutil
 import numpy as np
 import cv2
 import imageio
-# import pyexr
+import pyexr
 from matplotlib import cm
 from matplotlib.colors import LinearSegmentedColormap
 import json
@@ -147,8 +147,8 @@ class SaverMixin():
         img = self.get_image_grid_(imgs)
         if img.dtype == np.uint8:
             cv2.imwrite(self.get_save_path(filename), img)
-        # elif img.dtype == np.float32:
-        #     pyexr.write(self.get_save_path(filename), img)
+        elif img.dtype == np.float32:
+            pyexr.write(self.get_save_path(filename), img)
         else:
             raise ValueError(f"Unknown dtype: {img.dtype}")
 
