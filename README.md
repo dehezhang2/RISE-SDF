@@ -35,7 +35,7 @@ git clone --recursive git@github.com:dehezhang2/RISE-SDF.git
 - Create `python 3.10` environment
 
   ```bash
-  conda create --name instant-inv-glossy python=3.10
+  conda create --name rise-sdf python=3.10
   conda activate rise-sdf
   ```
 
