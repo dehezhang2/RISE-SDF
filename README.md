@@ -10,14 +10,11 @@ You can find detailed usage instructions for training your own models below.
 If you find our code useful, please cite:
 
 ```latex
-@misc{zhang2024risesdfrelightableinformationsharedsigned,
-	title={RISE-SDF: a Relightable Information-Shared Signed Distance Field for Glossy Object Inverse Rendering}, 
-	author={Deheng Zhang and Jingyu Wang and Shaofei Wang and Marko Mihajlovic and Sergey Prokudin and Hendrik P. A. Lensch and Siyu Tang},
-	year={2024},
-	eprint={2409.20140},
-	archivePrefix={arXiv},
-	primaryClass={cs.CV},
-	url={https://arxiv.org/abs/2409.20140}, 
+@inproceedings{zhang2025rise,
+	title={RISE-SDF: A Relightable Information-Shared Signed Distance Field for Glossy Object Inverse Rendering},
+	author={Zhang, Deheng and Wang, Jingyu and Wang, Shaofei and Mihajlovic, Marko and Prokudin, Sergey and Lensch, Hendrik and Tang, Siyu},
+	booktitle={International Conference on 3D Vision (3DV)},
+	year={2025}
 }
 ```
 
@@ -70,6 +67,7 @@ git clone --recursive git@github.com:dehezhang2/RISE-SDF.git
 
 * Download the [pre-integrated BSDF](https://github.com/liuyuan-pal/NeRO/blob/main/assets/bsdf_256_256.bin) into the `./load/bsdf/` folder.
 * Download the environment maps from [TensorIR Dataset](https://drive.google.com/file/d/10WLc4zk2idf4xGb6nPL43OXTTHvAXSR3/view) into the `./load/` folder.
+* Download the [TensoIR Dataset](https://zenodo.org/records/7880113#.ZE68FHZBz18), save the files to the `./load/TensoIR_synthetic/` folder (for TensoIR, you need to change the config file `albedo_format = 'png'`, `has_roughness=false`).
 * Download [Shiny Inverse Rendering Dataset](https://drive.google.com/drive/folders/1991eNN5-bMWK7aEHf99VU_iGZsH6FnAc?usp=drive_link), save the files to the `./load/TensoIR_synthetic/ ` folder. 
 
 ## Physically Based Inverse Rendering (PBIR)
@@ -88,8 +86,7 @@ The config snapshots, checkpoints, and experiment outputs are saved to `exp/[nam
 python launch.py --config configs/split-mixed-occ-tensoir.yaml --gpu 0 --train dataset.scene=toaster_disney tag=iter50k seed=0 trainer.max_steps=50000
 ```
 
-### Relighting (modify to per-scene script later)
-
+### Relighting
 The training procedure is by default followed by testing, which computes metrics on test data, generates animations, and exports the geometry as triangular meshes. If you want to do testing alone, just resume the pre-trained model and replace `--train` with `--test`, for example:
 
 ```bash
