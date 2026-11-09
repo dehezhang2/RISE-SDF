@@ -13,6 +13,12 @@
     <link rel="stylesheet" type="text/css" href="css/project.css" media="screen" />
     <link rel="stylesheet" type="text/css" media="screen" href="css/iconize.css" />
     <script src="js/google-code-prettify/prettify.js"></script> -->
+    <style>
+      .talk { position: relative; aspect-ratio: 16 / 9; max-width: 100%; border-radius: 12px; overflow: hidden; background: #06070a; box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+      .talk iframe { display: block; width: 100%; height: 100%; border: 0; }
+      .talk-cap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; font-size: .85rem; color: #8899a5; margin-top: 12px; text-align: left; }
+      .talk-cap kbd { font: inherit; color: #4a5560; background: none; border: 1px solid #c9d1d8; border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; box-shadow: none; }
+    </style>
   </head>
 
   <!-- cover -->
@@ -67,6 +73,10 @@
               <p class="mb-5"><a class="btn btn-large btn-light" href="https://drive.google.com/drive/folders/1991eNN5-bMWK7aEHf99VU_iGZsH6FnAc?usp=drive_link" role="button"  target="_blank">
                 <i class="fa fa-database"></i> Dataset</a> </p>
               </div>
+            <div class="column">
+              <p class="mb-5"><a class="btn btn-large btn-light" href="#slides" role="button">
+                <i class="fa fa-television"></i> Slides</a> </p>
+              </div>
             </div>
 
           </div>
@@ -74,6 +84,22 @@
       </div>
     </div>
   </section>
+
+  <!-- slides -->
+  <section id="slides">
+    <div class="container">
+      <div class="row">
+        <div class="col-12 text-center">
+          <h3>Slides</h3>
+          <hr style="margin-top:0px">
+          <div class="talk"><iframe src="talk.html" title="RISE-SDF interactive slides" allow="fullscreen" loading="eager"></iframe></div>
+          <p class="talk-cap"><span>Interactive slides: click the right side of a slide or press <kbd>→</kbd>, <kbd>←</kbd> to go back, <kbd>O</kbd> lists the slides, <kbd>L</kbd> switches to 中文, <kbd>F</kbd> goes full screen.</span>
+            <a href="talk.html" target="_blank" rel="noopener">Open the slides in a new tab ↗</a></p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <br>
 
   <section>
     <div class="container">

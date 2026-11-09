@@ -1,0 +1,1482 @@
+<title>RISE-SDF Talk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..800&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<script>window.MathJax={tex:{inlineMath:[['\\(','\\)']],displayMath:[['\\[','\\]']]},svg:{fontCache:'global'},options:{enableMenu:false}};</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"></script>
+<style>
+/* One 1600x900 stage scaled to the window. A photo studio for glossy objects: graphite walls,
+   chrome for titles. Colours follow the paper's pipeline figure: teal = radiance field (stage 1),
+   red = physically based branch (stage 2), blue = indirect light, gold = RISE-SDF in every chart. */
+:root{
+  color-scheme: dark;
+  --page:#06070a;
+  --bg:#0b0d12;
+  --panel:#12151c;
+  --panel-2:#1a1e28;
+  --line:#232835;
+  --line-2:#323949;
+  --fg:#eef0f4;
+  --muted:#a9b0bf;
+  --dim:#737c8f;
+  --gold:#f2b64e;
+  --gold-2:#ffd994;
+  --rad:#55cdbd;
+  --pbr:#ff6e5e;
+  --ind:#5e9cff;
+  --base:#8b94a7;
+  --paper:#ffffff;
+  --f-display:"Archivo","Instrument Sans","Noto Sans SC",system-ui,sans-serif;
+  --f-body:"Instrument Sans","Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono","Noto Sans SC",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{background:var(--page);color:var(--fg);font-family:var(--f-body);overflow:hidden;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:0}
+:root[data-lang="zh"] .en, :root[data-lang="en"] .zh{display:none !important}
+#viewport{position:relative;height:100%;overflow:hidden;background:var(--page)}
+#viewport:fullscreen{padding:0}
+#stage{position:absolute;left:50%;top:50%;width:1600px;height:900px;transform-origin:50% 50%;overflow:hidden;border-radius:6px;
+  background:radial-gradient(1000px 520px at 90% -16%, rgba(255,255,255,.075), transparent 62%),
+    radial-gradient(820px 480px at -8% 112%, rgba(242,182,78,.07), transparent 60%), var(--bg)}
+mjx-container{color:inherit}
+
+/* ---------- slides ---------- */
+.slide{position:absolute;inset:0;padding:52px 80px 92px;display:flex;flex-direction:column;gap:24px;
+  opacity:0;visibility:hidden;transform:translateX(44px);
+  transition:opacity .5s ease, transform .7s cubic-bezier(.2,.7,.2,1), visibility 0s linear .7s}
+.slide.past{transform:translateX(-44px)}
+.slide.active{opacity:1;visibility:visible;transform:none;transition:opacity .5s ease, transform .7s cubic-bezier(.2,.7,.2,1), visibility 0s}
+.hd{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;flex:none}
+.hd .t{display:flex;flex-direction:column;gap:10px;min-width:0}
+h1,h2,h3,p{margin:0}
+h2{font:700 44px/1.08 var(--f-display);font-stretch:110%;letter-spacing:-.01em;text-wrap:balance;display:flex;align-items:center;gap:18px}
+:root[data-lang="zh"] h2{font-family:var(--f-body);font-size:42px;letter-spacing:0}
+.mark{flex:none;width:34px;height:34px;border-radius:50%;display:inline-block;
+  background:radial-gradient(circle at 34% 30%, #fff 0 7%, #dfe4ec 16%, #7e8799 46%, #2b303b 70%, #c9cfda 92%, #8e97a8 100%);
+  box-shadow:0 0 22px rgba(255,255,255,.12)}
+h3{font:600 22px/1.3 var(--f-body)}
+.lede{font-size:21px;line-height:1.5;color:var(--muted);max-width:1240px;text-wrap:pretty}
+.body{flex:1;min-height:0;display:grid;gap:40px}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.small{font-size:18px;line-height:1.55;color:var(--muted)}
+.cap{font:400 15px/1.5 var(--f-mono);color:var(--dim)}
+b,strong{font-weight:600;color:var(--fg)}
+.gold{color:var(--gold)}.rad{color:var(--rad)}.pbr{color:var(--pbr)}.ind{color:var(--ind)}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--f-mono)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 22px}
+.card p{font-size:17px;line-height:1.5;color:var(--muted)}
+.card .big{font:700 40px/1 var(--f-display);font-stretch:112%;margin-bottom:8px;font-variant-numeric:tabular-nums}
+.paper{background:var(--paper);border-radius:14px;padding:12px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.paper img,.paper video{display:block;width:100%;height:auto;border-radius:6px}
+.zoomable{cursor:zoom-in}
+ul.pts{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
+ul.pts li{position:relative;padding-left:28px;font-size:20px;line-height:1.5;color:var(--muted)}
+ul.pts li::before{content:"";position:absolute;left:2px;top:.5em;width:12px;height:12px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #fff 0 12%, #b9c0cc 40%, #4a5161 80%)}
+ul.pts li b{color:var(--fg)}
+.math{font-size:19px;color:var(--fg);overflow-x:auto;overflow-y:hidden}
+.eqbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px;display:flex;flex-direction:column;gap:8px}
+.eqbox .k{font:500 13px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+:root[data-lang="zh"] .eqbox .k{letter-spacing:.02em}
+
+/* builds */
+.slide [data-s]{opacity:0;transform:translateY(14px);transition:opacity .5s ease, transform .6s cubic-bezier(.2,.7,.2,1)}
+.slide [data-s].on{opacity:1;transform:none}
+.slide.active .rise{animation:rise .75s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--d,0) * 90ms)}
+@keyframes rise{from{opacity:0;transform:translateY(16px)}}
+
+/* controls */
+.ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:11px;overflow:hidden;background:var(--panel)}
+.seg button{white-space:nowrap;font:500 15px/1 var(--f-body);color:var(--muted);background:transparent;border:0;padding:10px 14px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--fg);box-shadow:inset 0 -2px 0 var(--gold)}
+.seg button:hover{color:var(--fg)}
+.seg button:disabled{opacity:.35;cursor:default}
+button:focus-visible,input:focus-visible,[tabindex]:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.btn{font:500 15px/1 var(--f-mono);color:var(--muted);background:transparent;border:1px solid var(--line-2);border-radius:9px;padding:9px 13px;cursor:pointer}
+.btn:hover{color:var(--fg);border-color:var(--dim)}
+.range{display:inline-flex;align-items:center;gap:10px;font:500 15px var(--f-body);color:var(--muted)}
+.range input{width:170px;accent-color:var(--gold)}
+.range .num{font-family:var(--f-mono);color:var(--fg);min-width:52px}
+.lab-k{font:500 13px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:16px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:8px}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;background:currentColor}
+
+/* charts */
+svg.chart{width:100%;height:auto;display:block;overflow:visible}
+svg.chart text{fill:var(--muted);font-family:var(--f-mono);font-size:15px}
+svg.chart text.lab{fill:var(--fg);font-family:var(--f-body);font-size:17px;font-weight:500}
+svg.chart text.sub{fill:var(--dim);font-family:var(--f-mono);font-size:13px}
+svg.chart text.val{fill:var(--fg);font-size:15px}
+svg.chart text.na{fill:var(--dim);font-size:14px;font-style:italic}
+svg.chart .grid line{stroke:var(--line);stroke-width:1}
+.gx{transform-box:fill-box;transform-origin:left center;animation:gx .9s cubic-bezier(.2,.7,.2,1) both}
+.gy{transform-box:fill-box;transform-origin:center bottom;animation:gy .9s cubic-bezier(.2,.7,.2,1) both}
+@keyframes gx{from{transform:scaleX(0)}}
+@keyframes gy{from{transform:scaleY(0)}}
+.fadein{animation:fadein .7s ease both}
+@keyframes fadein{from{opacity:0}}
+
+/* chrome */
+#chrome{position:absolute;left:0;right:0;bottom:0;height:60px;display:flex;align-items:center;gap:14px;padding:0 28px 0 80px;z-index:20;
+  font:500 15px var(--f-mono);color:var(--dim)}
+#prog{position:absolute;left:0;top:0;height:2px;background:linear-gradient(90deg,var(--rad),var(--gold),var(--pbr));width:0;transition:width .5s cubic-bezier(.2,.7,.2,1)}
+#chrome .sp{flex:1}
+#count{color:var(--muted);min-width:84px;text-align:right}
+#toc{position:absolute;inset:0;z-index:40;background:rgba(6,7,10,.95);padding:60px 80px;display:flex;flex-direction:column;gap:26px}
+#toc h3{font:700 34px var(--f-display)}
+#toc ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:10px 24px}
+#toc button{width:100%;text-align:left;font:500 18px/1.4 var(--f-body);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 16px;cursor:pointer;display:flex;gap:14px}
+#toc button span.n{font-family:var(--f-mono);color:var(--gold);min-width:28px}
+#toc button:hover{border-color:var(--gold)}
+#zoom{position:absolute;inset:0;z-index:45;background:rgba(6,7,10,.94);display:grid;place-items:center;padding:40px 60px 80px;cursor:zoom-out}
+#zoom .paper{max-width:100%;max-height:100%;display:flex}
+#zoom img{max-width:1440px;max-height:740px;width:auto;height:auto;object-fit:contain}
+
+/* cover */
+#cover{padding:0}
+.cover-in{position:absolute;left:88px;top:150px;width:820px;display:flex;flex-direction:column;gap:22px}
+.venue{align-self:flex-start;font:600 16px/1 var(--f-mono);letter-spacing:.12em;color:#1d1400;background:var(--gold);padding:9px 13px;border-radius:8px}
+.cover-in h1{font:800 116px/.9 var(--f-display);font-stretch:120%;letter-spacing:-.02em;white-space:nowrap;
+  background:linear-gradient(180deg,#ffffff 0%,#e3e7ee 36%,#7d8698 52%,#b9c0cc 68%,#f4f6f9 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 6px 26px rgba(255,255,255,.08));padding-bottom:.04em}
+.cover-sub{font:500 28px/1.35 var(--f-body);color:var(--fg);max-width:800px;text-wrap:balance}
+.cover-sub u{text-decoration:none;color:var(--gold-2);border-bottom:2px solid var(--gold)}
+.authors{font-size:19px;line-height:1.6;color:var(--muted)}
+.authors sup{font-size:.7em;color:var(--dim)}
+.affil{font:400 15px/1.6 var(--f-mono);color:var(--dim)}
+.cover-balls{position:absolute;right:70px;top:196px;width:660px;display:flex;flex-direction:column;align-items:center;gap:16px}
+#cv-cover{width:660px;height:300px;display:block}
+.cover-floor{width:640px;height:2px;margin-top:-30px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent)}
+.cover-tags{display:grid;grid-template-columns:repeat(3,1fr);width:660px;text-align:center;font:500 15px/1.4 var(--f-mono);color:var(--dim)}
+.cover-tags b{display:block;font:600 17px var(--f-body);color:var(--fg)}
+.cover-cap{width:620px;text-align:center}
+.hint{position:absolute;left:88px;bottom:72px;font:400 15px var(--f-mono);color:var(--dim)}
+
+/* task */
+#task .body{grid-template-columns:960px 1fr;align-items:center}
+.unk{display:flex;flex-direction:column;gap:12px}
+.unk .card{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:baseline;padding:14px 20px}
+.unk .k{font:600 15px var(--f-mono);letter-spacing:.06em;text-transform:uppercase}
+:root[data-lang="zh"] .unk .k{letter-spacing:0;font-size:16px}
+.unk p{font-size:18px;line-height:1.45;color:var(--muted)}
+.why{font:500 20px/1.5 var(--f-body);padding:18px 22px;border-radius:16px;border:1px solid var(--line-2);
+  background:linear-gradient(135deg,rgba(255,255,255,.05),rgba(242,182,78,.07));color:var(--fg)}
+
+/* prior */
+#prior .body{grid-template-columns:1fr 470px;align-items:start}
+table.mt{width:100%;border-collapse:collapse;font-size:17px}
+table.mt th{text-align:left;font:500 13px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:0 12px 10px 0;border-bottom:1px solid var(--line-2);white-space:nowrap}
+:root[data-lang="zh"] table.mt th{letter-spacing:0;font-size:14px}
+table.mt td{padding:11px 12px 11px 0;border-bottom:1px solid var(--line);vertical-align:middle;color:var(--muted)}
+table.mt td.m{font-weight:600;color:var(--fg);white-space:nowrap}
+table.mt td.c{text-align:center;font-size:19px}
+table.mt .y{color:var(--rad)}.mt .n{color:var(--pbr)}
+table.mt tr.pick{cursor:pointer}
+table.mt tr.pick:hover td{background:rgba(255,255,255,.03)}
+table.mt tr.sel td{background:rgba(242,182,78,.08)}
+table.mt tr.sel td.m{color:var(--gold-2)}
+table.mt tr.ours td{color:var(--fg)}
+table.mt tr.ours td.m{color:var(--gold)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pair figure{margin:0;display:flex;flex-direction:column;gap:6px}
+.pair .paper{padding:6px}
+.pair figcaption{font:500 14px var(--f-mono);color:var(--dim);text-align:center}
+
+/* overview */
+#overview .body{grid-template-columns:740px 1fr;align-items:center}
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:grid;grid-template-columns:42px 1fr;gap:4px 14px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+.step .n{grid-row:span 2;width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font:700 18px var(--f-mono);color:#141008;background:var(--gold)}
+.step.s-rad .n{background:var(--rad)}.step.s-pbr .n{background:var(--pbr)}.step.s-ind .n{background:var(--ind)}
+.step h3{font-size:20px}
+.step p{font-size:17px;line-height:1.45;color:var(--muted)}
+
+/* sdf */
+#sdf .body{grid-template-columns:900px 1fr;align-items:start}
+#sv-sdf{margin-top:4px}
+.read{display:flex;flex-wrap:wrap;gap:10px 28px;font:500 16px var(--f-mono);color:var(--muted)}
+.read>span{white-space:nowrap}
+.read b{color:var(--fg);font-weight:500}
+
+/* split-sum demo */
+#splitsum .body{grid-template-columns:560px 1fr;align-items:start;gap:44px}
+#splitsum .eqbox .math{font-size:18px}
+.ball{position:relative;width:560px;display:flex;flex-direction:column;align-items:center;gap:10px}
+#cv-ball{width:400px;height:400px;display:block;cursor:grab;touch-action:none}
+#cv-ball:active{cursor:grabbing}
+.ball .ctrl{justify-content:center}
+#ss-stat{min-height:22px;text-align:center}
+.envstrip{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:center}
+.envstrip .col{gap:10px}
+#cv-env{width:300px;height:150px;border-radius:10px;border:1px solid var(--line-2);display:block}
+
+/* sharing */
+#share .body{grid-template-columns:900px 1fr;align-items:start}
+.sh{display:grid;grid-template-columns:1fr 250px 1fr;gap:12px 0;align-items:center}
+.sh .hdr{font:500 13px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;text-align:center;padding-bottom:4px}
+:root[data-lang="zh"] .sh .hdr{letter-spacing:.02em;font-size:15px}
+.sh .hdr.rad{color:var(--rad)}.sh .hdr.pbr{color:var(--pbr)}.sh .hdr.mid{color:var(--dim)}
+.sh .o{position:relative;display:flex;align-items:center;gap:12px;height:58px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:var(--panel);font-size:16px;color:var(--muted);transition:opacity .45s ease, border-color .35s, box-shadow .35s, background .35s}
+.sh .o .sym{font-size:22px;color:var(--fg);min-width:44px;text-align:center}
+.sh .o.l{margin-right:28px}.sh .o.r{margin-left:28px}
+.sh .o.l::after,.sh .o.r::before{content:"";position:absolute;top:50%;width:28px;height:2px}
+.sh .o.l::after{right:-29px;background:var(--rad)}
+.sh .o.r::before{left:-29px;background:var(--pbr)}
+.sh .o.none{background:transparent;border-style:dashed;justify-content:center;color:var(--dim)}
+.sh .o.none::after,.sh .o.none::before{display:none}
+.sh .f{height:58px;border-radius:12px;display:grid;place-items:center;font-size:17px;color:var(--fg);background:var(--panel-2);border:1px solid var(--line-2);transition:border-color .35s, box-shadow .35s}
+.sh .f.new{border-style:dashed}
+.sh.s0 .r,.sh.s0 .f.st2{opacity:.18}
+.sh .hl{border-color:var(--gold) !important;box-shadow:0 0 0 1px var(--gold),0 0 30px rgba(242,182,78,.22)}
+.sh-eq{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.sh-eq .eqbox{transition:opacity .45s}
+.sh.s0 ~ .sh-eq .e2{opacity:.18}
+.eq-b,.eq-cd{transition:color .35s}
+.share-b .eq-b,.share-cd .eq-cd{color:var(--gold)}
+.notes{display:flex;flex-direction:column;gap:12px}
+.notes .card{display:flex;flex-direction:column;gap:6px}
+.notes .n{font:700 15px var(--f-mono);color:var(--gold)}
+
+/* evidence grids */
+.igrid{display:grid;gap:10px}
+.igrid .h{font:500 15px var(--f-mono);color:var(--muted);text-align:center;align-self:end}
+.igrid .rl{font:500 15px var(--f-mono);color:var(--muted);writing-mode:vertical-rl;transform:rotate(180deg);text-align:center}
+:root[data-lang="zh"] .igrid .rl{writing-mode:horizontal-tb;transform:none}
+.igrid .cell{background:#fff;border-radius:10px;overflow:hidden}
+.igrid .cell img{display:block;width:100%;height:auto}
+.igrid .h.ours{color:var(--gold)}
+.dumb{display:flex;flex-direction:column;gap:12px}
+.dumb .row{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:center}
+.dumb .row .k{font-size:16px;color:var(--fg);font-weight:500}
+.dumb svg{width:100%;height:44px;display:block;overflow:visible}
+
+/* indirect */
+#indirect .body{grid-template-columns:900px 1fr;align-items:start}
+#cv-ind{width:900px;height:500px;display:block;border-radius:16px;border:1px solid var(--line-2);background:var(--panel);touch-action:none}
+.ind-r{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ind-r .eqbox .math{font-size:18px}
+.gauge{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;font:500 15px var(--f-mono);color:var(--muted)}
+.gauge .tr{height:12px;border-radius:6px;background:var(--panel-2);position:relative;overflow:hidden}
+.gauge .fl{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,rgba(94,156,255,.4),var(--ind));transition:width .2s}
+
+/* indirect evidence */
+#indev .body{grid-template-columns:1fr 360px;align-items:start}
+
+/* dataset */
+#dataset .body{grid-template-columns:640px 1fr;align-items:start}
+table.ds{width:100%;border-collapse:collapse;font-size:17px}
+table.ds th{text-align:center;font:500 13px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--dim);padding:0 8px 10px;border-bottom:1px solid var(--line-2)}
+:root[data-lang="zh"] table.ds th{letter-spacing:0;font-size:14px}
+table.ds th:first-child,table.ds td:first-child{text-align:left;padding-left:0}
+table.ds td{padding:11px 8px;border-bottom:1px solid var(--line);text-align:center;color:var(--muted)}
+table.ds td:first-child{color:var(--fg);font-weight:500}
+table.ds .y{color:var(--rad)}table.ds .n{color:var(--dim)}
+table.ds tr.ours td{color:var(--gold-2);background:rgba(242,182,78,.07)}
+.gtg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.gtg .cell{background:#fff;border-radius:10px;overflow:hidden}
+.gtg .cell img{display:block;width:100%;height:auto}
+.gtg .h{font:500 15px var(--f-mono);color:var(--muted);text-align:center}
+
+/* results */
+#results .body{grid-template-columns:1fr 400px;align-items:start}
+.obs{display:flex;flex-direction:column;gap:14px}
+
+/* qualitative */
+#qual .body{grid-template-rows:auto 1fr;gap:20px}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start}
+.trio figure{margin:0;display:flex;flex-direction:column;gap:10px}
+.trio .paper{padding:8px}
+.trio figcaption{font:600 18px var(--f-body);text-align:center;color:var(--fg)}
+.trio figcaption span{display:block;font:400 14px var(--f-mono);color:var(--dim);margin-top:4px}
+.trio .ours figcaption{color:var(--gold)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{font:500 15px/1 var(--f-body);color:var(--muted);background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:9px 13px;cursor:pointer}
+.chips button:hover{color:var(--fg)}
+.chips button[aria-pressed="true"]{color:#141008;background:var(--gold-2);border-color:var(--gold-2)}
+
+/* videos */
+#videos .body{grid-template-rows:auto 1fr;gap:18px;justify-items:center}
+#videos .paper{width:1180px}
+#videos video{max-height:560px;object-fit:contain}
+
+/* ablation */
+#ablation .body{grid-template-columns:830px 1fr;align-items:start}
+#ab-met button{font-size:14px;padding:10px 11px}
+.mcg{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mcg .cell{background:#fff;border-radius:8px;overflow:hidden}
+.mcg .cell img{display:block;width:100%;height:auto}
+.mcg .h{font:500 14px var(--f-mono);color:var(--muted);text-align:center}
+
+/* real */
+#real .body{grid-template-columns:1fr 520px;align-items:start}
+.rtrio{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.rtrio figure{margin:0;display:flex;flex-direction:column;gap:8px}
+.rtrio .cell{background:#fff;border-radius:10px;overflow:hidden;aspect-ratio:1/1;display:grid;place-items:center}
+.rtrio .cell img{display:block;max-width:100%;max-height:100%}
+.rtrio figcaption{font:500 15px var(--f-mono);color:var(--muted);text-align:center}
+
+/* limitations */
+#limits .body{grid-template-columns:1fr 600px;align-items:start}
+.lims{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.lims .card{display:flex;flex-direction:column;gap:6px}
+.lims .n{font:700 15px var(--f-mono);color:var(--pbr)}
+.lims h3{font-size:19px}
+.lims p{font-size:16px}
+.lims p.cap{font-size:13px}
+table.mini{width:100%;border-collapse:collapse;font-size:16px}
+table.mini th{font:500 13px var(--f-mono);color:var(--dim);text-align:right;padding:0 0 8px 10px;border-bottom:1px solid var(--line-2)}
+table.mini th:first-child,table.mini td:first-child{text-align:left;padding-left:0}
+table.mini td{padding:8px 0 8px 10px;text-align:right;border-bottom:1px solid var(--line);color:var(--muted);font-variant-numeric:tabular-nums}
+table.mini td:first-child{color:var(--fg)}
+table.mini tr.ours td{color:var(--gold-2)}
+table.mini td.best{color:var(--fg);font-weight:600}
+
+/* take-away */
+#takeaway .body{grid-template-columns:1fr 520px;align-items:start}
+.claim{font:600 27px/1.42 var(--f-body);padding:24px 28px;border-radius:18px;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(242,182,78,.10));border:1px solid var(--line-2)}
+.claim em{font-style:normal;color:var(--gold-2)}
+.tk{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.tk .row{display:grid;grid-template-columns:44px 1fr;gap:16px;align-items:start}
+.tk .row .n{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font:700 20px var(--f-mono);color:#141008;background:var(--gold)}
+.tk .row p{font-size:19px;line-height:1.5;color:var(--muted)}
+.fut{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.fut li{font-size:18px;line-height:1.45;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;gap:12px;align-items:baseline}
+.fut li::before{content:"→";color:var(--gold);font-family:var(--f-mono)}
+
+/* contact */
+#contact .body{grid-template-columns:380px 1fr;align-items:center;gap:64px}
+#contact .ph{width:380px;height:380px;border-radius:24px;object-fit:cover;box-shadow:0 0 0 6px rgba(255,255,255,.08),0 24px 60px rgba(0,0,0,.5)}
+.thanks{font:800 150px/.95 var(--f-display);font-stretch:125%;letter-spacing:-.02em;
+  background:linear-gradient(180deg,#ffffff 0%,#e3e7ee 36%,#7d8698 52%,#b9c0cc 68%,#f4f6f9 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+:root[data-lang="zh"] .thanks{font-family:var(--f-body);font-size:132px}
+.mail{font:500 30px var(--f-mono);color:var(--fg);user-select:all}
+.links{display:flex;flex-wrap:wrap;gap:12px}
+.links a{font:500 17px/1 var(--f-body);color:var(--fg);text-decoration:none;background:var(--panel);border:1px solid var(--line-2);border-radius:999px;padding:12px 18px}
+.links a:hover{border-color:var(--gold)}
+
+/* closing slide: back to the speaker's introduction deck */
+#intro-back .body{display:flex;align-items:center;justify-content:center}
+.back-card{display:grid;grid-template-columns:230px minmax(0,1fr);gap:44px;align-items:center;max-width:1200px;padding:38px 46px;border-radius:24px;
+  background:var(--panel);border:1px solid var(--line-2);color:var(--fg);text-decoration:none;transition:border-color .25s, box-shadow .25s}
+.back-card:hover{border-color:var(--gold);box-shadow:0 0 48px rgba(242,182,78,.14)}
+.back-card img{width:230px;height:230px;border-radius:50%;object-fit:cover;display:block;max-width:none;box-shadow:0 0 0 6px rgba(255,255,255,.08)}
+.bk-txt{display:flex;flex-direction:column;gap:16px;min-width:0}
+.bk-k{font:500 16px var(--f-mono);color:var(--dim)}
+.bk-h{font:800 62px/1 var(--f-display);font-stretch:115%;letter-spacing:-.01em;
+  background:linear-gradient(180deg,#ffffff 0%,#e3e7ee 36%,#7d8698 52%,#b9c0cc 68%,#f4f6f9 100%);-webkit-background-clip:text;background-clip:text;color:transparent;padding-bottom:.06em}
+:root[data-lang="zh"] .bk-h{font:700 58px/1.1 var(--f-body)}
+.bk-d{font-size:22px;line-height:1.55;color:var(--muted)}
+.bk-u{font:500 18px var(--f-mono);color:var(--gold)}
+
+@media (prefers-reduced-motion: reduce){
+  .slide,.slide.active{transition:none}
+  .slide.active .rise,.gx,.gy,.fadein{animation:none}
+}
+</style>
+
+<div id="viewport">
+<div id="stage">
+
+<!-- ============ 1 COVER ============ -->
+<section class="slide" id="cover" data-te="Cover" data-tz="封面" data-sec="cover">
+  <div class="cover-in">
+    <span class="venue rise">3DV 2025</span>
+    <h1 class="rise" style="--d:1">RISE-SDF</h1>
+    <p class="cover-sub rise" style="--d:2"><span class="en">a <u>R</u>elightable <u>I</u>nformation-<u>S</u>har<u>e</u>d Signed Distance Field for Glossy Object Inverse Rendering</span><span class="zh">面向高光物体逆渲染的<u>可重打光</u>、<u>信息共享</u>符号距离场（a <u>R</u>elightable <u>I</u>nformation-<u>S</u>har<u>e</u>d Signed Distance Field）</span></p>
+    <p class="authors rise" style="--d:3">Deheng Zhang<sup>1,2*</sup>, Jingyu Wang<sup>1*</sup>, Shaofei Wang<sup>1</sup>, Marko Mihajlovic<sup>1</sup>, Sergey Prokudin<sup>1</sup>, Hendrik P.A. Lensch<sup>2</sup>, Siyu Tang<sup>1</sup></p>
+    <p class="affil rise" style="--d:4"><sup>1</sup>ETH Zürich &nbsp; <sup>2</sup>University of Tübingen &nbsp;·&nbsp; <span class="en">*equal contribution</span><span class="zh">*共同一作</span></p>
+  </div>
+  <div class="cover-balls rise" style="--d:3">
+    <canvas id="cv-cover" width="1320" height="600" aria-label="Three spheres with different materials under a slowly rotating studio environment"></canvas>
+    <div class="cover-floor"></div>
+    <div class="cover-tags"><span><b><span class="en">Chrome</span><span class="zh">镜面金属</span></b>m = 1 · ρ = 0.05</span><span><b><span class="en">Brushed gold</span><span class="zh">磨砂金</span></b>m = 1 · ρ = 0.35</span><span><b><span class="en">Red plastic</span><span class="zh">红色塑料</span></b>m = 0 · ρ = 0.3</span></div>
+    <p class="cap cover-cap"><span class="en">Split-sum shading (the appearance model RISE-SDF uses), rendered live in your browser under a rotating environment map.</span><span class="zh">用 split-sum 着色（RISE-SDF 使用的外观模型）在浏览器里实时渲染，环境光在缓慢旋转。</span></p>
+  </div>
+  <p class="hint"><span class="en">→ / Space: next &nbsp; ← back &nbsp; L: 中 / EN &nbsp; F: fullscreen &nbsp; O: contents</span><span class="zh">→ / 空格：下一步　← 上一步　L：中 / EN　F：全屏　O：目录</span></p>
+</section>
+
+<!-- ============ 2 TASK ============ -->
+<section class="slide" id="task" data-te="Inverse rendering" data-tz="逆渲染" data-sec="problem">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Inverse rendering: from photos to a relightable asset</span><span class="zh">逆渲染：从照片到可重打光的资产</span></h2>
+    <p class="lede"><span class="en">Given multi-view images and camera poses of an object, recover what produced them, so the object can be rendered again under any new light.</span><span class="zh">给定一个物体的多视角图像和相机位姿，恢复生成这些图像的因素，从而在任意新光照下重新渲染它。</span></p></div></header>
+  <div class="body">
+    <figure class="paper rise" style="margin:0;--d:1"><video data-src="image/talk/video/teaser.mp4" poster="image/talk/video/teaser.jpg" muted loop playsinline preload="none" aria-label="Multi-view images and camera poses go into RISE-SDF, which outputs normal, albedo, roughness and relit images"></video></figure>
+    <div class="col">
+      <div class="unk">
+        <div class="card rise" style="--d:2"><span class="k rad"><span class="en">Geometry</span><span class="zh">几何</span></span><p><span class="en">signed distance field \(s(\mathbf x)\); surface \(s=0\), normal \(\mathbf n\)</span><span class="zh">符号距离场 \(s(\mathbf x)\)；表面 \(s=0\)，法线 \(\mathbf n\)</span></p></div>
+        <div class="card rise" style="--d:3"><span class="k gold"><span class="en">Material</span><span class="zh">材质</span></span><p><span class="en">albedo \(\mathbf a\), metallic \(m\), roughness \(\rho\) of a simplified Disney BRDF</span><span class="zh">简化 Disney BRDF 的反照率 \(\mathbf a\)、金属度 \(m\)、粗糙度 \(\rho\)</span></p></div>
+        <div class="card rise" style="--d:4"><span class="k pbr"><span class="en">Lighting</span><span class="zh">光照</span></span><p><span class="en">a distant environment map \(L\)</span><span class="zh">远处的环境贴图 \(L\)</span></p></div>
+      </div>
+      <p class="why rise" style="--d:5"><span class="en">Glossy objects are the hard case: a mirror-like surface shows its surroundings, not itself, so reflections are easily baked into the texture or the shape.</span><span class="zh">高光物体是难点：镜面一样的表面映出的是周围环境而不是自己，反射很容易被错当成纹理或几何。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 PRIOR ============ -->
+<section class="slide" id="prior" data-te="What prior methods miss" data-tz="现有方法缺什么" data-sec="problem">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">What prior methods miss</span><span class="zh">现有方法缺什么</span></h2>
+    <p class="lede"><span class="en">Inverse-rendering methods for glossy objects, as compared in the paper. Click a row to see its relighting of the toaster.</span><span class="zh">论文对比的高光物体逆渲染方法。点击一行，查看它对烤面包机的重打光结果。</span></p></div></header>
+  <div class="body">
+    <div class="col rise" style="--d:1">
+      <table class="mt" id="mt">
+        <thead><tr><th><span class="en">Method</span><span class="zh">方法</span></th><th><span class="en">Representation</span><span class="zh">表示</span></th><th title="physically based" style="text-align:center">PB</th><th title="end-to-end relightable" style="text-align:center">E2ER</th><th><span class="en">Train</span><span class="zh">训练</span></th><th><span class="en">Relighting failure (paper)</span><span class="zh">重打光的问题（论文所述）</span></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="cap"><span class="en">PB: physically based BRDF. E2ER: end-to-end relightable; NeRO and ENVIDR need extra steps per new light (a Blender export, or training an MLP to hold the environment map). Training times from the paper's Table 1.</span><span class="zh">PB：基于物理的 BRDF。E2ER：端到端可重打光；NeRO 和 ENVIDR 每换一种光照都要额外步骤（导出到 Blender，或训练一个 MLP 来存环境贴图）。训练时间来自论文表 1。</span></p>
+    </div>
+    <div class="col rise" style="--d:2">
+      <div class="pair">
+        <figure><div class="paper"><img src="image/talk/cmp/relight_toaster_gt.jpg" alt="Ground-truth relighting of the toaster"></div><figcaption>GT</figcaption></figure>
+        <figure><div class="paper"><img id="pr-img" src="image/talk/cmp/relight_toaster_nero.jpg" alt=""></div><figcaption id="pr-cap">NeRO</figcaption></figure>
+      </div>
+      <div class="card"><p id="pr-note"></p></div>
+      <p class="small"><span class="en">And no glossy dataset had ground-truth material and relighting, so material quality could not be measured.</span><span class="zh">此外，没有任何高光数据集提供材质和重打光的真值，材质好坏无法定量评测。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 OVERVIEW ============ -->
+<section class="slide" id="overview" data-steps="4" data-te="RISE-SDF at a glance" data-tz="RISE-SDF 概览" data-sec="method">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">RISE-SDF at a glance</span><span class="zh">RISE-SDF 概览</span></h2></div></header>
+  <div class="body">
+    <figure class="paper rise" style="margin:0;--d:1;padding:16px"><img class="zoomable" src="image/pipeline_v2.png" alt="RISE-SDF pipeline: a progressive hash grid and geometry MLP give the SDF and a feature; separate MLPs give albedo, metallic, roughness, diffuse and specular colour and indirect colour; values are volume rendered, then a secondary ray gives the occlusion probability that blends direct and indirect light"></figure>
+    <div class="steps">
+      <div class="step s-rad" data-s="1"><span class="n">1</span><h3><span class="en">Stage 1: geometry first</span><span class="zh">阶段一：先学几何</span></h3><p><span class="en">A neural SDF (NeuS on a progressive hash grid) with a reflection-aware radiance field: diffuse, specular and blend MLPs.</span><span class="zh">神经 SDF（渐进式哈希网格上的 NeuS），配一个感知反射的辐射场：漫反射、高光和混合三个 MLP。</span></p></div>
+      <div class="step s-pbr" data-s="2"><span class="n">2</span><h3><span class="en">Stage 2: information sharing</span><span class="zh">阶段二：信息共享</span></h3><p><span class="en">The same MLP heads also predict albedo and metallic; split-sum PBR with a cube-mipmap environment; trained jointly with the radiance field.</span><span class="zh">同一组 MLP 头同时预测反照率和金属度；用 split-sum PBR 和立方体 mipmap 环境光，与辐射场联合训练。</span></p></div>
+      <div class="step s-ind" data-s="3"><span class="n">3</span><h3><span class="en">Indirect light</span><span class="zh">间接光</span></h3><p><span class="en">Training: an MLP predicts the indirect specular light. Relighting: a second split-sum traces one bounce.</span><span class="zh">训练时：一个 MLP 预测高光的间接光。重打光时：用第二次 split-sum 追踪一次反弹。</span></p></div>
+      <div class="step" data-s="4"><span class="n">4</span><h3><span class="en">A dataset to measure it</span><span class="zh">一个能评测它的数据集</span></h3><p><span class="en">Five glossy scenes with ground-truth albedo, roughness and relighting under nine environment maps.</span><span class="zh">五个高光场景，提供反照率、粗糙度的真值，以及九张环境贴图下的重打光真值。</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5 SDF ============ -->
+<section class="slide" id="sdf" data-te="Volume rendering an SDF" data-tz="对 SDF 做体渲染" data-sec="bg">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Geometry: volume rendering a signed distance field</span><span class="zh">几何：对符号距离场做体渲染</span></h2>
+    <p class="lede"><span class="en">NeuS turns the SDF along a camera ray into opacities, so a surface can be learned from images alone. Sharpen the density and the weights collapse onto the first surface.</span><span class="zh">NeuS 把相机光线上的 SDF 转成不透明度，于是只用图像就能学出表面。把密度调尖，权重会集中到第一个表面上。</span></p></div></header>
+  <div class="body">
+    <div class="col">
+      <div class="ctrl ix">
+        <label class="range" for="sdf-s"><span class="en">Sharpness</span><span class="zh">锐度</span> \(1/\sigma\)<input id="sdf-s" type="range" min="0" max="1" step="0.01" value="0.55"><span id="sdf-sv" class="num"></span></label>
+        <label class="range" for="sdf-n"><span class="en">Samples</span><span class="zh">采样数</span> \(N\)<input id="sdf-n" type="range" min="16" max="128" step="8" value="48"><span id="sdf-nv" class="num"></span></label>
+      </div>
+      <svg id="sv-sdf" class="chart" viewBox="0 0 900 470" role="img" aria-label="SDF along a ray and the resulting volume-rendering weights"></svg>
+      <div class="read" aria-live="polite"><span><span class="en">first surface</span><span class="zh">第一个表面</span> <b>t = 0.400</b></span><span><span class="en">expected depth</span><span class="zh">期望深度</span> <b id="sdf-T"></b></span><span>\(\sum w_i\) <b id="sdf-W"></b></span><span><span class="en">weight on 2nd object</span><span class="zh">第二个物体的权重</span> <b id="sdf-W2"></b></span></div>
+    </div>
+    <div class="col">
+      <div class="eqbox rise" style="--d:1"><span class="k"><span class="en">volume rendering</span><span class="zh">体渲染</span></span><div class="math">\[\mathbf C=\sum_{i=1}^{N} w_i\,\mathbf c_i,\qquad w_i=\alpha_i\prod_{j&lt;i}(1-\alpha_j)\]</div></div>
+      <div class="eqbox rise" style="--d:2"><span class="k"><span class="en">NeuS opacity from the SDF</span><span class="zh">由 SDF 得到 NeuS 不透明度</span></span><div class="math">\[\alpha_i=\max\!\Big(\frac{\Phi_\sigma(s(\mathbf x_i))-\Phi_\sigma(s(\mathbf x_{i+1}))}{\Phi_\sigma(s(\mathbf x_i))},\,0\Big)\]</div></div>
+      <div class="eqbox rise" style="--d:3"><span class="k"><span class="en">surface and normal</span><span class="zh">表面与法线</span></span><div class="math">\[\mathcal S=\{\mathbf x\mid s(\mathbf x)=0\},\qquad \mathbf n=\frac{\nabla s}{\lVert\nabla s\rVert}\]</div></div>
+      <p class="small rise" style="--d:4"><span class="en">\(1/\sigma\) is learned and shrinks during training. RISE-SDF predicts \(s\) and a feature \(\boldsymbol\beta\) from a progressive hash grid, with Eikonal and curvature losses.</span><span class="zh">\(1/\sigma\) 是可学习的，训练中会变小。RISE-SDF 用渐进式哈希网格预测 \(s\) 和特征 \(\boldsymbol\beta\)，并加 Eikonal 和曲率损失。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 SPLIT-SUM ============ -->
+<section class="slide" id="splitsum" data-te="Split-sum shading" data-tz="Split-sum 着色" data-sec="bg">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Appearance: Monte Carlo is noisy, split-sum is not</span><span class="zh">外观：Monte Carlo 有噪声，split-sum 没有</span></h2>
+    <p class="lede"><span class="en">Shading needs an integral over the hemisphere. Split-sum replaces it with two lookups. Drag the sphere to turn the light.</span><span class="zh">着色需要在半球上积分。split-sum 把它换成两次查表。拖动小球可以旋转光照。</span></p></div></header>
+  <div class="body">
+    <div class="ball ix">
+      <div class="ctrl"><div class="seg" id="ss-mode" role="group" aria-label="integrator"></div><div class="seg" id="ss-spp" role="group" aria-label="Monte Carlo samples"></div></div>
+      <canvas id="cv-ball" width="440" height="440" aria-label="A shaded sphere; drag to rotate the environment"></canvas>
+      <p class="cap" id="ss-stat" aria-live="polite"></p>
+      <div class="ctrl">
+        <label class="range" for="ss-r"><span class="en">roughness</span><span class="zh">粗糙度</span> ρ<input id="ss-r" type="range" min="0.02" max="1" step="0.01" value="0.25"><span id="ss-rv" class="num"></span></label>
+        <label class="range" for="ss-m"><span class="en">metallic</span><span class="zh">金属度</span> m<input id="ss-m" type="range" min="0" max="1" step="0.01" value="1"><span id="ss-mv" class="num"></span></label>
+      </div>
+      <div class="ctrl"><div class="seg" id="ss-alb" role="group" aria-label="albedo"></div></div>
+    </div>
+    <div class="col">
+      <div class="eqbox rise" style="--d:1"><span class="k"><span class="en">rendering equation, simplified Disney BRDF</span><span class="zh">渲染方程，简化 Disney BRDF</span></span><div class="math">\[\mathbf c=\int_{H^2} f_r\,L(\boldsymbol\omega)\,(\mathbf n\cdot\boldsymbol\omega)\,d\boldsymbol\omega,\quad f_r=(1-m)\frac{\mathbf a}{\pi}+\frac{D(\rho)\,F(m,\mathbf a)\,G}{4\,|\mathbf d\cdot\mathbf n|\,|\boldsymbol\omega\cdot\mathbf n|}\]</div></div>
+      <div class="eqbox rise" style="--d:2"><span class="k">split-sum</span><div class="math">\[\mathbf c\approx\underbrace{\int f_r\,(\mathbf n\cdot\boldsymbol\omega)\,d\boldsymbol\omega}_{\text{BRDF integral: 2D LUT}}\cdot\underbrace{\int L(\boldsymbol\omega)\,p(\boldsymbol\omega;\hat{\mathbf d},\rho)\,d\boldsymbol\omega}_{\text{light integral: mipmap}(\hat{\mathbf d},\rho)}\]</div>
+        <div class="math">\[\mathbf c_s=(F_0F_1+F_2)\,\mathbf l^s(\hat{\mathbf d},\rho),\quad \mathbf c_d=(1-m)\,\mathbf a\,\mathbf l^d(\mathbf n),\quad F_0=0.04(1-m)+m\,\mathbf a\]</div></div>
+      <div class="envstrip rise ix" style="--d:3"><canvas id="cv-env" width="300" height="150" aria-label="The environment map prefiltered at the current roughness"></canvas>
+        <div class="col"><div class="seg" id="ss-env" role="group" aria-label="environment"></div><p class="small" id="ss-envcap"></p></div></div>
+      <p class="cap rise" style="--d:4"><span class="en">Demo: GGX lobes; the 2D LUT is replaced by Lazarov's analytic fit. Not the paper's code.</span><span class="zh">演示：GGX 波瓣；二维查找表用 Lazarov 的解析拟合代替。并非论文代码。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7 SHARING ============ -->
+<section class="slide" id="share" data-steps="4" data-te="Information sharing" data-tz="信息共享" data-sec="method">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Two stages, shared heads</span><span class="zh">两个阶段，共享的网络头</span></h2>
+    <p class="lede" id="sh-lede"></p></div></header>
+  <div class="body">
+    <div class="col">
+      <div class="sh s0" id="sh">
+        <div class="hdr rad"><span class="en">Radiance field · stage 1</span><span class="zh">辐射场 · 阶段一</span></div><div class="hdr mid"><span class="en">MLP heads</span><span class="zh">MLP 头</span></div><div class="hdr pbr"><span class="en">Physically based · stage 2</span><span class="zh">基于物理 · 阶段二</span></div>
+        <div class="o l" data-k="cd"><span class="sym">\(\mathbf c_d\)</span><span><span class="en">diffuse colour</span><span class="zh">漫反射颜色</span></span></div>
+        <div class="f" data-k="cd">\(f_{\text{diff}}(e(\mathbf x),\boldsymbol\beta)\)</div>
+        <div class="o r" data-k="cd"><span class="sym">\(\mathbf a\)</span><span><span class="en">albedo</span><span class="zh">反照率</span></span></div>
+        <div class="o l" data-k="b"><span class="sym">\(b\)</span><span><span class="en">blend weight</span><span class="zh">混合权重</span></span></div>
+        <div class="f" data-k="b">\(f_{\text{blend}}(e(\mathbf x),\boldsymbol\beta)\)</div>
+        <div class="o r" data-k="b"><span class="sym">\(m\)</span><span><span class="en">metallic</span><span class="zh">金属度</span></span></div>
+        <div class="o l" data-k="cs"><span class="sym">\(\mathbf c_s\)</span><span><span class="en">specular colour</span><span class="zh">高光颜色</span></span></div>
+        <div class="f" data-k="cs">\(f_{\text{spec}}(e(\hat{\mathbf d}))\)</div>
+        <div class="o r none" data-k="cs"><span class="en">from BRDF × light</span><span class="zh">由 BRDF × 光照得到</span></div>
+        <div class="o l none" data-k="r">–</div>
+        <div class="f new st2" data-k="r">\(f_{\text{rough}}(e(\mathbf x),\boldsymbol\beta)\)</div>
+        <div class="o r" data-k="r"><span class="sym">\(\rho\)</span><span><span class="en">roughness</span><span class="zh">粗糙度</span></span></div>
+        <div class="o l none" data-k="env">–</div>
+        <div class="f new st2" data-k="env"><span class="en">cube mipmap, 6×512²</span><span class="zh">立方体 mipmap，6×512²</span></div>
+        <div class="o r" data-k="env"><span class="sym">\(\mathbf l^d,\mathbf l^s\)</span><span><span class="en">light integrals</span><span class="zh">光照积分</span></span></div>
+      </div>
+      <div class="sh-eq" id="sh-eq">
+        <div class="eqbox e1"><div class="math">\[\mathbf C=\sum_i w_i\big[(1-\class{eq-b}{b_i})\,\class{eq-cd}{\mathbf c_{d,i}}+\class{eq-b}{b_i}\,\mathbf c_{s,i}\big]\]</div></div>
+        <div class="eqbox e2"><div class="math">\[\mathbf C^{pbr}=\sum_i w_i\big[(1-\class{eq-b}{m_i})\,\class{eq-cd}{\mathbf a_i}\,\mathbf l^d_i+(F_0F_1+F_2)\,\mathbf l^s_i\big]\]</div></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="card" data-s="2"><span class="n">b ↔ m</span><p><span class="en"><b>Both mix diffuse and specular.</b> One MLP outputs the blend weight and the metallic value.</span><span class="zh"><b>两者都在混合漫反射和高光。</b>同一个 MLP 同时输出混合权重和金属度。</span></p></div>
+      <div class="card" data-s="3"><span class="n">c<sub>d</sub> ↔ a</span><p><span class="en"><b>Both are view-independent and low-entropy.</b> One MLP outputs the diffuse colour and the albedo.</span><span class="zh"><b>两者都与视角无关、信息量低。</b>同一个 MLP 同时输出漫反射颜色和反照率。</span></p></div>
+      <div class="card" data-s="4"><span class="n">\(\mathcal L_{\text{stage 2}}\)</span><div class="math" style="font-size:17px">\[\lambda_c\mathcal L_c+\lambda_c\mathcal L_{pbr}+\lambda_{eik}\mathcal L_{eik}+\lambda_{curv}\mathcal L_{curv}\]</div><p><span class="en"><b>Geometry keeps training.</b> The radiance-field loss stays on in stage 2, unlike NeRO, InvRender and NRTF, which freeze geometry before material estimation.</span><span class="zh"><b>几何继续训练。</b>阶段二仍保留辐射场损失；NeRO、InvRender、NRTF 则在估计材质前就冻结了几何。</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8 SHARING EVIDENCE ============ -->
+<section class="slide" id="shareev" data-te="Sharing: ablation" data-tz="共享：消融" data-sec="method">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Sharing gives better material and geometry</span><span class="zh">共享让材质和几何都更好</span></h2>
+    <p class="lede"><span class="en">Toaster, with and without information sharing. Without it, the model is shown at 5k iterations (the full model's material-optimization time) and at 15k (its geometry time).</span><span class="zh">烤面包机，有无信息共享的对比。无共享的模型分别在 5k 次迭代（完整模型优化材质的时长）和 15k 次迭代（完整模型优化几何的时长）时展示。</span></p></div></header>
+  <div class="body" style="grid-template-columns:820px 1fr;align-items:start">
+    <div class="igrid rise" style="--d:1;grid-template-columns:28px repeat(4,1fr)">
+      <span></span><span class="h">GT</span><span class="h ours"><span class="en">Ours, 15k</span><span class="zh">完整模型，15k</span></span><span class="h"><span class="en">no sharing, 5k</span><span class="zh">无共享，5k</span></span><span class="h"><span class="en">no sharing, 15k</span><span class="zh">无共享，15k</span></span>
+      <span class="rl"><span class="en">albedo</span><span class="zh">反照率</span></span><div class="cell"><img src="image/talk/share/gt_albedo.jpg" alt="GT albedo"></div><div class="cell"><img src="image/talk/share/ours_albedo.jpg" alt="Our albedo"></div><div class="cell"><img src="image/talk/share/joint1_albedo.jpg" alt="Albedo without sharing, 5k iterations"></div><div class="cell"><img src="image/talk/share/joint_albedo.jpg" alt="Albedo without sharing, 15k iterations"></div>
+      <span class="rl"><span class="en">roughness</span><span class="zh">粗糙度</span></span><div class="cell"><img src="image/talk/share/gt_roughness.jpg" alt="GT roughness"></div><div class="cell"><img src="image/talk/share/ours_roughness.jpg" alt="Our roughness"></div><div class="cell"><img src="image/talk/share/joint1_roughness.jpg" alt="Roughness without sharing, 5k"></div><div class="cell"><img src="image/talk/share/joint_roughness.jpg" alt="Roughness without sharing, 15k"></div>
+      <span class="rl"><span class="en">normal</span><span class="zh">法线</span></span><div class="cell"><img src="image/talk/share/gt_normal.jpg" alt="GT normal"></div><div class="cell"><img src="image/talk/share/ours_normal.jpg" alt="Our normal"></div><div class="cell"><img src="image/talk/share/joint1_normal.jpg" alt="Normal without sharing, 5k"></div><div class="cell"><img src="image/talk/share/joint_normal.jpg" alt="Normal without sharing, 15k"></div>
+    </div>
+    <div class="col">
+      <p class="cap"><span class="en">Average over the five synthetic scenes (paper Table 1): without sharing → full model.</span><span class="zh">五个合成场景的平均（论文表 1）：无共享 → 完整模型。</span></p>
+      <div class="dumb" id="sh-dumb"></div>
+      <p class="cap"><span class="en">Training time: 2 h without sharing, 2.5 h for the full model.</span><span class="zh">训练时间：无共享 2 小时，完整模型 2.5 小时。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9 INDIRECT ============ -->
+<section class="slide" id="indirect" data-te="Indirect illumination" data-tz="间接光照" data-sec="method">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Indirect light: an MLP to train, a second split-sum to relight</span><span class="zh">间接光：训练用 MLP，重打光用第二次 split-sum</span></h2>
+    <p class="lede"><span class="en">A glossy surface also reflects the object itself. Drag the hit point along the floor.</span><span class="zh">高光表面还会映出物体自身。沿地面拖动交点。</span></p></div></header>
+  <div class="body">
+    <div class="col ix">
+      <div class="ctrl"><div class="seg" id="ind-mode" role="group" aria-label="illumination model"></div>
+        <label class="range" for="ind-r"><span class="en">roughness</span><span class="zh">粗糙度</span> ρ<input id="ind-r" type="range" min="0.02" max="0.8" step="0.01" value="0.12"><span id="ind-rv" class="num"></span></label></div>
+      <canvas id="cv-ind" width="1800" height="1000" aria-label="A camera ray hits a glossy floor; the reflected ray may hit a wall of the same object or escape to the environment"></canvas>
+    </div>
+    <div class="ind-r">
+      <div class="eqbox"><span class="k" id="ind-k"></span><div class="math" id="ind-eq"></div></div>
+      <div class="gauge"><span><span class="en">occlusion</span><span class="zh">遮挡概率</span> \(O\)</span><span class="tr"><span class="fl" id="ind-O"></span></span><span id="ind-Ov" class="num">0.00</span></div>
+      <div class="gauge" id="ind-thr"><span>\(\mathbb 1[\rho\le\rho_t]\)</span><span class="tr"><span class="fl" id="ind-I"></span></span><span id="ind-Iv" class="num">1</span></div>
+      <p class="small" id="ind-txt"></p>
+      <div class="card"><p><span class="en"><b>Cheap:</b> the secondary ray queries only the geometry MLP, plus one indirect-colour query at \(\hat{\mathbf x}\): \(M+1\) queries, against \(2N\) for NeRO and \(4M\) for TensoIR/ENVIDR-style marching (with one density and three colour MLPs).</span><span class="zh"><b>开销小：</b>次级光线只查询几何 MLP，再在 \(\hat{\mathbf x}\) 处查询一次间接颜色：共 \(M+1\) 次；NeRO 要 \(2N\) 次，TensoIR/ENVIDR 式的二次行进要 \(4M\) 次（一个密度 MLP 加三个颜色 MLP 时）。</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 INDIRECT EVIDENCE ============ -->
+<section class="slide" id="indev" data-te="Indirect light: ablation" data-tz="间接光：消融" data-sec="method">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Both indirect terms matter when relighting</span><span class="zh">重打光时两个间接光项都不可少</span></h2>
+    <p class="lede"><span class="en">Toaster relit with the fireplace environment map. Bottom row: the boxed region, enlarged.</span><span class="zh">用壁炉环境贴图重打光的烤面包机。下排是框中区域的放大。</span></p></div></header>
+  <div class="body">
+    <div class="igrid rise" style="--d:1;grid-template-columns:repeat(4,1fr)">
+      <span class="h">GT</span><span class="h ours"><span class="en">Ours</span><span class="zh">完整模型</span></span><span class="h"><span class="en">no indirect MLP</span><span class="zh">无间接光 MLP</span></span><span class="h"><span class="en">no 2nd split-sum</span><span class="zh">无第二次 split-sum</span></span>
+      <div class="cell"><img src="image/talk/ind/gt.jpg" alt="GT relighting"></div><div class="cell"><img src="image/talk/ind/ours.jpg" alt="Our relighting"></div><div class="cell"><img src="image/talk/ind/ind.jpg" alt="Relighting without the indirect MLP"></div><div class="cell"><img src="image/talk/ind/second.jpg" alt="Relighting without the second split-sum"></div>
+      <div class="cell"><img src="image/talk/ind/gt_crop.jpg" alt="GT, enlarged"></div><div class="cell"><img src="image/talk/ind/ours_crop.jpg" alt="Ours, enlarged"></div><div class="cell"><img src="image/talk/ind/ind_crop.jpg" alt="Without indirect MLP, enlarged"></div><div class="cell"><img src="image/talk/ind/second_crop.jpg" alt="Without second split-sum, enlarged"></div>
+    </div>
+    <div class="obs">
+      <div class="card rise" style="--d:2"><div class="big gold num" id="ie-full"></div><p><span class="en">relighting PSNR of the full model, averaged over the five scenes.</span><span class="zh">完整模型的重打光 PSNR，五个场景平均。</span></p></div>
+      <div class="card rise" style="--d:3"><div class="big num" id="ie-ind"></div><p><span class="en"><b>No indirect MLP:</b> reflections of the object on itself look less realistic.</span><span class="zh"><b>去掉间接光 MLP：</b>物体映在自身上的反射不够真实。</span></p></div>
+      <div class="card rise" style="--d:4"><div class="big num" id="ie-sec"></div><p><span class="en"><b>No second split-sum:</b> the indirect MLP, trained under the training light, gives unnatural contrast under a new one.</span><span class="zh"><b>去掉第二次 split-sum：</b>间接光 MLP 是在训练光照下学的，换了光照就出现不自然的对比。</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11 DATASET ============ -->
+<section class="slide" id="dataset" data-te="Shiny inverse-rendering dataset" data-tz="高光逆渲染数据集" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">A glossy dataset with material ground truth</span><span class="zh">一个带材质真值的高光数据集</span></h2>
+    <p class="lede"><span class="en">Five Shiny Blender objects (teapot, coffee, muscle car, toaster, helmet), re-shaded so that data and model use the same BRDF.</span><span class="zh">取 Shiny Blender 的五个物体（茶壶、咖啡、肌肉车、烤面包机、头盔），重新设置着色器，使数据与模型使用同一种 BRDF。</span></p></div></header>
+  <div class="body">
+    <div class="col">
+      <table class="ds rise" style="--d:1">
+        <thead><tr><th><span class="en">Dataset</span><span class="zh">数据集</span></th><th><span class="en">Material</span><span class="zh">材质</span></th><th><span class="en">Relighting</span><span class="zh">重打光</span></th><th><span class="en"># env maps</span><span class="zh">环境贴图数</span></th><th><span class="en">Shiny</span><span class="zh">高光</span></th></tr></thead>
+        <tbody>
+          <tr><td>NeRF Synthetic</td><td class="n">✗</td><td class="n">✗</td><td>0</td><td class="n">✗</td></tr>
+          <tr><td>Shiny Blender</td><td class="n">✗</td><td class="n">✗</td><td>0</td><td class="y">✓</td></tr>
+          <tr><td>NeRO Synthetic</td><td class="n">✗</td><td class="y">✓</td><td>3</td><td class="y">✓</td></tr>
+          <tr><td>NeRFactor Synthetic</td><td class="y">✓</td><td class="y">✓</td><td>8</td><td class="n">✗</td></tr>
+          <tr><td>TensoIR Synthetic</td><td class="y">✓</td><td class="y">✓</td><td>8</td><td class="n">✗</td></tr>
+          <tr class="ours"><td><span class="en">Ours</span><span class="zh">本文</span></td><td>✓</td><td>✓</td><td>9</td><td>✓</td></tr>
+        </tbody>
+      </table>
+      <ul class="pts">
+        <li class="rise" style="--d:2"><span class="en"><b>Aligned BRDF:</b> every shader becomes a Principled BRDF, default except base colour, metallic and roughness.</span><span class="zh"><b>BRDF 对齐：</b>所有着色器都换成 Principled BRDF，除基础色、金属度和粗糙度外都用默认值。</span></li>
+        <li class="rise" style="--d:3"><span class="en"><b>Ten lights:</b> one for training, nine for relighting.</span><span class="zh"><b>十种光照：</b>一种用于训练，九种用于重打光。</span></li>
+        <li class="rise" style="--d:4"><span class="en"><b>Exact material maps:</b> re-rendered with a Diffuse BSDF that carries the albedo or roughness value.</span><span class="zh"><b>精确的材质图：</b>用携带反照率或粗糙度数值的 Diffuse BSDF 重新渲染得到。</span></li>
+      </ul>
+    </div>
+    <div class="gtg rise" style="--d:2">
+      <span class="h"><span class="en">toaster</span><span class="zh">烤面包机</span></span><span class="h"><span class="en">helmet</span><span class="zh">头盔</span></span><span class="h"><span class="en">muscle car</span><span class="zh">肌肉车</span></span>
+      <div class="cell"><img src="image/talk/cmp/relight_toaster_gt.jpg" alt="Toaster, relit ground truth"></div><div class="cell"><img src="image/talk/cmp/relight_helmet_gt.jpg" alt="Helmet, relit ground truth"></div><div class="cell"><img src="image/talk/cmp/relight_musclecar_gt.jpg" alt="Muscle car, relit ground truth"></div>
+      <div class="cell"><img src="image/talk/cmp/material_toaster_gt.jpg" alt="Toaster ground-truth albedo and roughness"></div><div class="cell"><img src="image/talk/cmp/material_helmet_gt.jpg" alt="Helmet ground-truth albedo and roughness"></div><div class="cell"><img src="image/talk/cmp/material_musclecar_gt.jpg" alt="Muscle car ground-truth albedo and roughness"></div>
+      <p class="cap" style="grid-column:1/-1"><span class="en">Top: a relighting ground truth. Bottom: ground-truth albedo (left half) and roughness (right half).</span><span class="zh">上：重打光真值。下：反照率真值（左半）和粗糙度真值（右半）。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 12 RESULTS ============ -->
+<section class="slide" id="results" data-te="Quantitative results" data-tz="定量结果" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Results on the shiny dataset</span><span class="zh">高光数据集上的结果</span></h2></div></header>
+  <div class="body">
+    <div class="col ix">
+      <div class="ctrl"><div class="seg" id="rs-met" role="group" aria-label="metric"></div></div>
+      <div class="ctrl"><div class="seg" id="rs-sc" role="group" aria-label="scene"></div></div>
+      <svg id="sv-res" class="chart" viewBox="0 0 1040 470" role="img" aria-label="Score per method"></svg>
+      <p class="cap" id="rs-cap"></p>
+    </div>
+    <div class="obs">
+      <div class="card rise" style="--d:1"><div class="big gold num" id="rs-o1"></div><p id="rs-t1"></p></div>
+      <div class="card rise" style="--d:2"><div class="big gold num" id="rs-o2"></div><p id="rs-t2"></p></div>
+      <div class="card rise" style="--d:3"><div class="big num" id="rs-o3"></div><p id="rs-t3"></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 13 QUALITATIVE ============ -->
+<section class="slide" id="qual" data-te="Qualitative comparison" data-tz="定性对比" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Side by side</span><span class="zh">并排对比</span></h2></div></header>
+  <div class="body">
+    <div class="ctrl ix"><div class="seg" id="q-out" role="group" aria-label="output"></div><div class="seg" id="q-sc" role="group" aria-label="scene"></div><div class="chips" id="q-m" role="group" aria-label="baseline"></div></div>
+    <div class="trio">
+      <figure><div class="paper"><img id="q-gt" alt="" class="zoomable"></div><figcaption>GT</figcaption></figure>
+      <figure class="ours"><div class="paper"><img id="q-ours" alt="" class="zoomable"></div><figcaption>RISE-SDF<span id="q-ours-s"></span></figcaption></figure>
+      <figure><div class="paper"><img id="q-b" alt="" class="zoomable"></div><figcaption id="q-bn"></figcaption></figure>
+    </div>
+    <p class="cap" id="q-cap" style="margin-top:-6px"></p>
+  </div>
+</section>
+
+<!-- ============ 14 VIDEOS ============ -->
+<section class="slide" id="videos" data-te="Relighting in motion" data-tz="动态效果" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">In motion</span><span class="zh">动态效果</span></h2></div></header>
+  <div class="body">
+    <div class="ctrl ix"><div class="seg" id="v-tab" role="group" aria-label="video"></div></div>
+    <figure class="paper rise" style="margin:0;--d:1"><video id="v-el" muted loop playsinline preload="none"></video></figure>
+  </div>
+</section>
+
+<!-- ============ 15 ABLATION ============ -->
+<section class="slide" id="ablation" data-te="Ablations" data-tz="消融实验" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Ablations: every part pays off</span><span class="zh">消融：每个部分都有用</span></h2></div></header>
+  <div class="body">
+    <div class="col ix">
+      <div class="ctrl"><div class="seg" id="ab-met" role="group" aria-label="metric"></div></div>
+      <svg id="sv-ab" class="chart" viewBox="0 0 830 400" role="img" aria-label="Score per model variant"></svg>
+      <p class="cap"><span class="en">Averages over the five synthetic scenes (paper Table 1). The second split-sum only acts at relighting, so that variant has relighting numbers only.</span><span class="zh">五个合成场景的平均（论文表 1）。第二次 split-sum 只在重打光时起作用，所以该变体只有重打光的数字。</span></p>
+    </div>
+    <div class="col">
+      <h3><span class="en">Monte Carlo instead of split-sum</span><span class="zh">用 Monte Carlo 代替 split-sum</span></h3>
+      <div class="ctrl ix"><div class="seg" id="mc-sc" role="group" aria-label="scene"></div></div>
+      <div class="mcg" id="mcg"></div>
+      <p class="small" id="mc-txt"></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 16 REAL ============ -->
+<section class="slide" id="real" data-te="Real captures" data-tz="真实拍摄数据" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Real captures: NeRO's Glossy-Real set</span><span class="zh">真实拍摄：NeRO 的 Glossy-Real 数据集</span></h2></div></header>
+  <div class="body">
+    <div class="col ix">
+      <div class="ctrl"><div class="seg" id="rl-o" role="group" aria-label="object"></div></div>
+      <div class="rtrio">
+        <figure><div class="cell"><img id="rl-nvs" alt=""></div><figcaption><span class="en">novel view</span><span class="zh">新视角</span></figcaption></figure>
+        <figure><div class="cell"><img id="rl-mesh" alt=""></div><figcaption><span class="en">extracted mesh</span><span class="zh">提取的网格</span></figcaption></figure>
+        <figure><div class="cell"><img id="rl-rel" alt=""></div><figcaption id="rl-relc"></figcaption></figure>
+      </div>
+      <p class="cap"><span class="en">Trained 4 h with ground-truth object masks; meshes from marching cubes at 512³.</span><span class="zh">训练 4 小时，使用物体真值掩码；网格由 512³ 的 marching cubes 提取。</span></p>
+    </div>
+    <div class="col">
+      <svg id="sv-real" class="chart" viewBox="0 0 520 300" role="img" aria-label="Chamfer distance per method"></svg>
+      <div class="card"><p><span class="en"><b>Geometry: second best.</b> Chamfer distance averages 0.0032 against NeRO's 0.0019; NDR, NDRMC and ours use ground-truth masks.</span><span class="zh"><b>几何：第二好。</b>平均 Chamfer 距离 0.0032，NeRO 为 0.0019；NDR、NDRMC 和本文用了真值掩码。</span></p></div>
+      <div class="card"><p><span class="en"><b>Material falls short here:</b> the distant-light assumption breaks. The masked-out plate causes near-field indirect light, and the photographer's reflection is not modelled.</span><span class="zh"><b>材质在这里不够好：</b>远处光源的假设不成立。被掩掉的底盘带来近场间接光，拍摄者自己的反射也没有建模。</span></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 17 LIMITATIONS ============ -->
+<section class="slide" id="limits" data-te="Limitations" data-tz="局限" data-sec="exp">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Limitations</span><span class="zh">局限</span></h2></div></header>
+  <div class="body">
+    <div class="lims">
+      <div class="card rise" style="--d:1"><span class="n">01</span><h3><span class="en">Isotropic BRDF</span><span class="zh">各向同性 BRDF</span></h3><p><span class="en">No transparent or anisotropic materials.</span><span class="zh">处理不了透明或各向异性的材质。</span></p></div>
+      <div class="card rise" style="--d:2"><span class="n">02</span><h3><span class="en">No shadows on diffuse surfaces</span><span class="zh">漫反射表面没有阴影</span></h3><p><span class="en">Weaker under point lights, and shadows can be mistaken for geometry (right). A shadow cache after stage 1, as in GS-IR, is a possible fix.</span><span class="zh">点光源下效果较差，阴影还可能被误当成几何（右图）。可行的改进是像 GS-IR 那样在阶段一之后缓存阴影。</span></p></div>
+      <div class="card rise" style="--d:3"><span class="n">03</span><h3><span class="en">Ambiguity remains</span><span class="zh">歧义仍然存在</span></h3><p><span class="en">Light, material and geometry trade off; the material can still be far off in some cases.</span><span class="zh">光照、材质和几何之间可以互相抵消；某些情况下材质仍会偏离很多。</span></p></div>
+      <div class="card rise" style="--d:4"><span class="n">04</span><h3><span class="en">Not interactive</span><span class="zh">还不能实时</span></h3><p id="lim-fps"></p></div>
+      <div class="card rise" style="--d:5;grid-column:1/-1"><span class="n">05</span><h3><span class="en">Diffuse scenes: comparable, not best</span><span class="zh">漫反射场景：相当，但不是最好</span></h3>
+        <table class="mini" id="lim-tab"></table>
+        <p class="cap" style="margin-top:6px"><span class="en">TensoIR synthetic set (lego, hotdog, armadillo, ficus), averages from the paper's supplementary.</span><span class="zh">TensoIR 合成数据集（lego、hotdog、armadillo、ficus），数字为论文补充材料中的平均值。</span></p></div>
+    </div>
+    <div class="col rise" style="--d:3">
+      <figure class="paper" style="margin:0"><img class="zoomable" src="image/talk/fig/limitation.jpg" alt="Failure case: a shadow is explained as geometry, giving artifacts in normal, albedo, roughness and relighting"></figure>
+      <p class="cap"><span class="en">Paper's failure example: the shadow is explained by geometry, which leaves artifacts.</span><span class="zh">论文中的失败例子：阴影被解释成几何，留下伪影。</span></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 18 TAKE-AWAY ============ -->
+<section class="slide" id="takeaway" data-te="Take-away" data-tz="要点" data-sec="end">
+  <header class="hd"><div class="t">
+    <h2><i class="mark"></i><span class="en">Take-away</span><span class="zh">要点</span></h2></div></header>
+  <div class="body">
+    <div class="col">
+      <p class="claim rise" style="--d:1"><span class="en">RISE-SDF reconstructs glossy objects into <em>geometry, material and lighting that can be relit end to end</em>, with no Blender export and no per-light training.</span><span class="zh">RISE-SDF 把高光物体重建成<em>可端到端重打光的几何、材质和光照</em>，不需要导出到 Blender，也不需要为每种光照单独训练。</span></p>
+      <div class="tk">
+        <div class="row rise" style="--d:2"><span class="n">1</span><p><span class="en"><b>Share what the two branches have in common.</b> Blend weight ↔ metallic and diffuse colour ↔ albedo come from the same MLPs, which stabilizes material and geometry.</span><span class="zh"><b>让两个分支共享共同的东西。</b>混合权重 ↔ 金属度、漫反射颜色 ↔ 反照率由同一组 MLP 输出，材质和几何都因此更稳定。</span></p></div>
+        <div class="row rise" style="--d:3"><span class="n">2</span><p><span class="en"><b>Split-sum everywhere,</b> including one secondary bounce for relighting: noise-free and faster than Monte Carlo.</span><span class="zh"><b>处处用 split-sum，</b>重打光时的一次二次反弹也是：没有噪声，比 Monte Carlo 更快。</span></p></div>
+        <div class="row rise" style="--d:4"><span class="n">3</span><p><span class="en"><b>Measure material, not just pictures.</b> A glossy dataset with ground-truth albedo, roughness and relighting.</span><span class="zh"><b>评测材质，而不只是评测图像。</b>一个带反照率、粗糙度和重打光真值的高光数据集。</span></p></div>
+      </div>
+    </div>
+    <div class="col rise" style="--d:3">
+      <h3><span class="en">Open problems named in the paper</span><span class="zh">论文中提到的开放问题</span></h3>
+      <ul class="fut">
+        <li><span class="en">Shadows on diffuse surfaces (a shadow cache after stage 1)</span><span class="zh">漫反射表面的阴影（在阶段一之后缓存阴影）</span></li>
+        <li><span class="en">Near-field light from the surroundings of real captures</span><span class="zh">真实拍摄中周围环境带来的近场光照</span></li>
+        <li><span class="en">The photographer's reflection on the object</span><span class="zh">拍摄者自己在物体上的反射</span></li>
+        <li><span class="en">Anisotropic and transparent materials</span><span class="zh">各向异性和透明材质</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 19 CONTACT ============ -->
+<section class="slide" id="contact" data-te="Thanks" data-tz="谢谢" data-sec="end">
+  <header class="hd"><div class="t"><h2><i class="mark"></i><span class="en">Contact</span><span class="zh">联系方式</span></h2></div></header>
+  <div class="body">
+    <img class="ph rise" src="image/talk/deheng.png" alt="Deheng Zhang">
+    <div class="col" style="gap:26px">
+      <p class="thanks rise" style="--d:1"><span class="en">Thanks!</span><span class="zh">谢谢！</span></p>
+      <p class="mail rise" style="--d:2">deheng.zhang@insait.ai</p>
+      <div class="links rise ix" style="--d:3">
+        <a href="https://arxiv.org/abs/2409.20140" target="_blank" rel="noopener">Paper</a>
+        <a href="https://dehezhang2.github.io/RISE-SDF/" target="_blank" rel="noopener">Project page</a>
+        <a href="https://github.com/dehezhang2/RISE-SDF" target="_blank" rel="noopener">Code</a>
+        <a href="https://drive.google.com/drive/folders/1991eNN5-bMWK7aEHf99VU_iGZsH6FnAc" target="_blank" rel="noopener">Dataset</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 20 BACK TO INTRO ============ -->
+<section class="slide" id="intro-back" data-te="Back to my introduction" data-tz="返回我的个人介绍" data-sec="end">
+  <header class="hd"><div class="t"><h2><i class="mark"></i><span class="en">More about me</span><span class="zh">更多关于我</span></h2></div></header>
+  <div class="body">
+    <a class="back-card rise" style="--d:1" href="https://dehezhang2.github.io/intro.html#s1" target="_top">
+      <img src="image/talk/deheng.png" alt="Deheng Zhang">
+      <span class="bk-txt">
+        <span class="bk-k"><span class="en">Deheng Zhang · introduction slides</span><span class="zh">Deheng Zhang · 个人介绍幻灯片</span></span>
+        <span class="bk-h"><span class="en">↩ Back to my introduction</span><span class="zh">↩ 返回我的个人介绍</span></span>
+        <span class="bk-d"><span class="en">RISE-SDF is my MSc work at ETH Zürich (VLG, with Prof. Siyu Tang) on slide 1. The deck goes on to EgoNight, ConeGaussian, StateSpaceDiffuser and where I want to take world models next.</span><span class="zh">RISE-SDF 是我在 ETH Zürich 读硕士时的工作（VLG，Siyu Tang 教授组），在第 1 页。后面还会讲 EgoNight、ConeGaussian、StateSpaceDiffuser，以及我接下来想做的世界模型方向。</span></span>
+        <span class="bk-u">dehezhang2.github.io/intro.html</span>
+      </span>
+    </a>
+  </div>
+</section>
+
+<!-- chrome -->
+<div id="chrome">
+  <div id="prog"></div>
+  <span id="secname"></span><span class="sp"></span>
+  <button class="btn" id="b-toc" title="O"><span class="en">Contents</span><span class="zh">目录</span></button>
+  <button class="btn" id="b-lang" title="L">中 / EN</button>
+  <button class="btn" id="b-fs" title="F"><span class="en">Fullscreen</span><span class="zh">全屏</span></button>
+  <button class="btn" id="b-prev" aria-label="Previous">←</button>
+  <span id="count" class="num" aria-live="polite">1 / 20</span>
+  <button class="btn" id="b-next" aria-label="Next">→</button>
+</div>
+<div id="toc" hidden><h3><span class="en">Contents</span><span class="zh">目录</span></h3><ol id="toc-list"></ol></div>
+<div id="zoom" hidden><div class="paper"><img alt=""></div></div>
+</div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const root=document.documentElement;
+let LANG='en';
+try{LANG=localStorage.getItem('rs-lang')||'en';}catch(e){}
+root.dataset.lang=LANG;
+const L=(en,zh)=>LANG==='zh'?zh:en;
+const css=n=>getComputedStyle(root).getPropertyValue(n).trim();
+const C={};['gold','gold-2','rad','pbr','ind','base','fg','muted','dim','line','line-2','bg','panel','panel-2'].forEach(k=>C[k]=css('--'+k));
+const NS='http://www.w3.org/2000/svg';
+function E(tag,at,parent,txt){const e=document.createElementNS(NS,tag);if(at)for(const k in at)e.setAttribute(k,at[k]);if(txt!=null)e.textContent=txt;if(parent)parent.appendChild(e);return e;}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function segInit(el,opts,cur,onPick){el.innerHTML='';opts.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.label;b.dataset.k=o.key;b.setAttribute('aria-pressed',o.key===cur?'true':'false');
+  b.addEventListener('click',()=>{if(b.disabled)return;$$('button',el).forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));onPick(o.key);});el.appendChild(b);});}
+function typeset(el){if(window.MathJax&&MathJax.typesetPromise){MathJax.typesetPromise(el?[el]:undefined).catch(()=>{});}}
+
+/* ---------------- data: parsed from the arXiv LaTeX tables by tools/extract_tables.py ---------------- */
+/*DATA*/
+const D={"main":[{"m":"NDR","pb":true,"e2e":true,"v":[5.877,23.452,22.34,0.921,0.102,29.312,0.939,0.062,21.057,0.817,0.145],"t":"2 hrs"},{"m":"NDRMC","pb":true,"e2e":true,"v":[4.767,23.782,22.602,0.935,0.084,26.28,0.914,0.1,25.149,0.89,0.1],"t":"2 hrs"},{"m":"NMF","pb":true,"e2e":true,"v":[3.11,22.099,14.238,0.755,0.211,30.516,0.95,0.037,21.59,0.904,0.072],"t":"5 hrs"},{"m":"ENVIDR","pb":false,"e2e":false,"v":[3.33,null,null,null,null,31.5,0.936,0.072,25.524,0.907,0.08],"t":"6 hrs*"},{"m":"GShader","pb":false,"e2e":true,"v":[6.179,null,null,null,null,29.598,0.934,0.075,23.718,0.91,0.081],"t":"1.5 hrs"},{"m":"NeRO","pb":true,"e2e":false,"v":[3.694,20.237,22.907,0.925,0.097,30.331,0.958,0.054,28.116,0.98,0.031],"t":"> 10 hrs"},{"m":"Ours (w.o. info-share)","pb":true,"e2e":true,"v":[2.191,28.216,25.634,0.931,0.08,31.22,0.988,0.016,27.252,0.984,0.031],"t":"2 hrs"},{"m":"Ours (w.o. indirect MLP)","pb":true,"e2e":true,"v":[1.947,28.31,25.17,0.925,0.084,30.451,0.99,0.018,27.3,0.984,0.03],"t":"2.5 hrs"},{"m":"Ours (with Monte-Carlo)","pb":true,"e2e":true,"v":[2.54,25.865,22.8,0.881,0.105,29.482,0.925,0.072,23.766,0.876,0.126],"t":"6 hrs"},{"m":"Ours (w.o. sec. split-sum)","pb":true,"e2e":true,"v":[null,null,null,null,null,null,null,null,27.23,0.984,0.03],"t":"-"},{"m":"Ours(full model)","pb":true,"e2e":true,"v":[1.869,29.46,25.839,0.941,0.078,32.05,0.993,0.012,28.096,0.985,0.03],"t":"2.5 hrs"},{"m":"Ours (full model, 5 hrs)","pb":true,"e2e":true,"v":[1.78,30.076,25.958,0.943,0.052,32.493,0.994,0.011,28.215,0.986,0.028],"t":"5 hrs"}],"scene":{"Teapot":{"NDR":[5.43,28.32,31.47,0.98,0.02,33.17,0.98,0.02,26.78,0.93,0.03],"NDRMC":[4.63,27.69,30.55,0.99,0.02,27.98,0.96,0.04,27.2,0.93,0.04],"NMF":[5.18,26.25,19.42,0.76,0.21,33.39,0.98,0.02,24.41,0.96,0.03],"ENVIDR":[1.61,null,null,null,null,37.16,0.98,0.02,29.22,0.97,0.03],"GShader":[7.24,null,null,null,null,34.84,0.97,0.02,26.41,0.96,0.03],"NeRO":[1.23,17.5,29.42,0.98,0.02,35.99,0.99,0.01,32.48,0.98,0.02],"Ours (full model)":[0.78,38.86,34.26,0.99,0.01,38.55,0.99,0.01,32.55,0.99,0.02],"Ours (full model, 5 hrs)":[0.76,38.61,34.41,0.99,0.01,39.15,0.99,0.01,32.46,0.99,0.03]},"Coffee":{"NDR":[10.44,23.59,20.99,0.91,0.13,25.98,0.9,0.1,22.25,0.82,0.15],"NDRMC":[8.44,23.6,22.43,0.95,0.08,23.93,0.87,0.15,23.34,0.86,0.14],"NMF":[4.04,23.13,13.79,0.8,0.22,26.52,0.91,0.08,21.38,0.89,0.1],"ENVIDR":[7.58,null,null,null,null,26.13,0.89,0.13,24.72,0.87,0.12],"GShader":[7.06,null,null,null,null,26.83,0.91,0.11,23.59,0.9,0.1],"NeRO":[3.13,23.22,19.01,0.92,0.12,27.1,0.94,0.09,25.88,0.92,0.09],"Ours (full model)":[3.43,29.24,16.91,0.89,0.12,27.04,0.99,0.02,25.03,0.98,0.03],"Ours (full model, 5 hrs)":[3.36,29.24,16.92,0.89,0.11,26.93,0.99,0.02,25.49,0.98,0.03]},"Car":{"NDR":[5.37,22.02,20.19,0.92,0.11,29.73,0.95,0.04,22.46,0.86,0.09],"NDRMC":[5.12,21.61,20.07,0.92,0.11,27.45,0.93,0.06,26.4,0.9,0.06],"NMF":[2.9,26.09,14.36,0.85,0.13,31.31,0.96,0.02,23.31,0.93,0.04],"ENVIDR":[3.32,null,null,null,null,31.55,0.95,0.05,26.43,0.93,0.06],"GShader":[5.71,null,null,null,null,31.62,0.95,0.05,25.74,0.93,0.05],"NeRO":[5.95,23.7,22.48,0.92,0.1,26.98,0.94,0.06,26.37,0.93,0.06],"Ours (full model)":[2.43,25.65,25.14,0.95,0.16,32.06,0.99,0.01,28.2,0.99,0.03],"Ours (full model, 5 hrs)":[2.22,27.74,25.39,0.95,0.04,32.65,0.99,0.01,28.32,0.99,0.03]},"Toaster":{"NDR":[6.05,18.5,14.99,0.87,0.16,28.27,0.93,0.07,15.82,0.71,0.25],"NDRMC":[4.47,18.15,16.27,0.89,0.12,25.29,0.89,0.14,22.13,0.85,0.15],"NMF":[2.62,14.44,9.59,0.69,0.3,29.82,0.94,0.04,17.97,0.86,0.11],"ENVIDR":[3.26,null,null,null,null,28.64,0.91,0.1,22.5,0.86,0.12],"GShader":[4.88,null,null,null,null,28.47,0.92,0.1,21.3,0.88,0.11],"NeRO":[2.16,14.99,19.43,0.88,0.19,29.27,0.94,0.08,25.7,0.91,0.09],"Ours (full model)":[2.19,20.48,20.96,0.89,0.09,30.36,0.99,0.01,25.27,0.98,0.03],"Ours (full model, 5 hrs)":[2.08,20.48,19.15,0.9,0.09,30.86,0.99,0.01,25.38,0.98,0.03]},"Helmet":{"NDR":[2.09,24.83,24.07,0.92,0.09,29.41,0.94,0.08,17.98,0.76,0.2],"NDRMC":[1.18,27.95,23.7,0.92,0.09,26.77,0.92,0.12,26.68,0.9,0.1],"NMF":[0.78,20.57,14.03,0.69,0.19,31.54,0.96,0.03,20.88,0.89,0.08],"ENVIDR":[0.89,null,null,null,null,34.02,0.95,0.06,24.75,0.91,0.07],"GShader":[6.0,null,null,null,null,26.23,0.91,0.09,21.55,0.88,0.11],"NeRO":[6.0,21.77,24.19,0.92,0.06,32.33,0.98,0.03,30.14,0.95,0.06],"Ours (full model)":[0.52,33.07,33.92,0.97,0.01,32.25,0.99,0.01,29.43,0.99,0.03],"Ours (full model, 5 hrs)":[0.48,34.31,33.92,0.98,0.01,32.87,0.99,0.01,29.43,0.99,0.02]}},"real":{"methods":["NDR","NDRMC","NeuS","NeRO","Ours(4hrs)"],"rows":{"Bunny":[0.0047,0.0042,0.0022,0.0012,0.0018],"Coral":[0.0025,0.0022,0.0016,0.0014,0.0016],"Maneki":[0.0148,0.0117,0.0091,0.0024,0.0023],"Bear":[0.0104,0.0118,0.0074,0.0033,0.0095],"Vase":[0.0201,0.0058,0.0101,0.0011,0.0012],"Avg.":[0.0105,0.0071,0.0061,0.0019,0.0032]}},"diffuse":{"NeRFactor":[6.314,25.125,0.94,0.109,24.679,0.922,0.12,23.383,0.908,0.131],"InvRender":[5.074,27.341,0.933,0.1,27.367,0.934,0.089,23.973,0.901,0.101],"TensoIR":[4.1,29.275,0.95,0.085,35.088,0.976,0.04,28.58,0.944,0.081],"Ours":[5.817,29.386,0.93,0.091,34.902,0.989,0.015,27.229,0.973,0.038]},"fps":{"teapot":[0.481,0.461],"musclecar":[0.292,0.253],"coffee":[0.203,0.193],"toaster":[0.199,0.133],"helmet":[0.282,0.148],"Avg.":[0.292,0.238]}};
+/*END DATA*/
+// vector layout of every method row: normal MAE, roughness PSNR, albedo PSNR/SSIM/LPIPS, NVS PSNR/SSIM/LPIPS, relighting PSNR/SSIM/LPIPS
+const MAIN=Object.fromEntries(D.main.map(r=>[r.m,r]));
+const OURS='Ours(full model)', OURS5='Ours (full model, 5 hrs)';
+const hrs=t=>t.replace(/\s*hrs\*?/,' h').replace('> ','>');
+const METRICS=[
+  {k:0,en:'Normal MAE',zh:'法线 MAE',lo:true,d:2},
+  {k:1,en:'Roughness PSNR',zh:'粗糙度 PSNR',d:2},
+  {k:2,en:'Albedo PSNR',zh:'反照率 PSNR',d:2},
+  {k:5,en:'Novel view PSNR',zh:'新视角 PSNR',d:2},
+  {k:8,en:'Relighting PSNR',zh:'重打光 PSNR',d:2},
+  {k:10,en:'Relighting LPIPS',zh:'重打光 LPIPS',lo:true,d:3}];
+
+/* ---------------- horizontal bar chart (sorted, best first) ---------------- */
+function hbars(svg,rows,o){
+  // rows: [{name, sub, v (null = n/a), ours, hi}] ; o: {lo (lower better), dec, max, naText, ml}
+  svg.innerHTML='';
+  const [W,H]=svg.getAttribute('viewBox').split(' ').slice(2).map(Number);
+  const ml=o.ml||250,mr=80,mt=8,iw=W-ml-mr;
+  const have=rows.filter(r=>r.v!=null).sort((a,b)=>o.lo?a.v-b.v:b.v-a.v), na=rows.filter(r=>r.v==null);
+  const all=have.concat(na),rh=Math.min(50,(H-mt-26)/all.length),bh=Math.min(26,rh*.56);
+  const vals=have.map(r=>r.v),vmax=o.max!=null?o.max:Math.max(...vals)*1.04;
+  const vmin=o.min!=null?o.min:0;
+  const X=v=>ml+(v-vmin)/(vmax-vmin)*iw;
+  const g=E('g',{class:'grid'},svg);
+  const ticks=o.ticks||[];ticks.forEach(t=>{E('line',{x1:X(t),x2:X(t),y1:mt,y2:mt+rh*all.length},g);E('text',{x:X(t),y:mt+rh*all.length+20,'text-anchor':'middle'},svg,o.fmtTick?o.fmtTick(t):t);});
+  all.forEach((r,i)=>{
+    const y=mt+rh*i+rh/2;
+    E('text',{x:ml-14,y:y+(r.sub?-1:6),'text-anchor':'end',class:'lab',style:r.ours?`fill:${C.gold}`:''},svg,r.name);
+    if(r.sub)E('text',{x:ml-14,y:y+16,'text-anchor':'end',class:'sub'},svg,r.sub);
+    if(r.v==null){E('text',{x:ml+8,y:y+5,class:'na'},svg,o.naText||'n/a');return;}
+    const col=r.ours?C.gold:(r.hi||C.base);
+    const rect=E('rect',{x:ml,y:y-bh/2,width:Math.max(2,X(r.v)-ml),height:bh,rx:5,fill:col,'fill-opacity':r.ours?1:.55,class:'gx'},svg);
+    rect.style.animationDelay=(i*.05)+'s';
+    E('text',{x:X(r.v)+10,y:y+5,class:'val',style:r.ours?`fill:${C['gold-2']}`:''},svg,r.v.toFixed(o.dec));
+  });
+}
+
+/* ---------------- environment maps, prefiltering and split-sum shading ---------------- */
+const TAU=Math.PI*2;
+function hashf(i,j){let h=(Math.imul(i,374761393)+Math.imul(j,668265263))|0;h=Math.imul(h^(h>>>13),1274126177);return ((h^(h>>>16))>>>0)/4294967296;}
+function sstep(e0,e1,x){const t=clamp((x-e0)/(e1-e0),0,1);return t*t*(3-2*t);}
+function wrapA(a){a=(a+Math.PI)%TAU;if(a<0)a+=TAU;return a-Math.PI;}
+function box(az,el,a0,e0,wa,we,s){return sstep(-s,s,wa-Math.abs(wrapA(az-a0)))*sstep(-s,s,we-Math.abs(el-e0));}
+// radiance of a direction (y up), in linear HDR
+const ENVF={
+  studio(x,y,z,o){
+    const el=Math.asin(clamp(y,-1,1)),az=Math.atan2(x,-z);
+    let r,g,b;
+    if(y<0){const f=.05+.05*Math.exp(y*4);r=f*1.04;g=f;b=f*.96;}
+    else{r=.03+.09*y;g=.034+.10*y;b=.045+.13*y;}
+    const k=box(az,el,.75,.5,.42,.27,.05)*7, f2=box(az,el,-1.95,.2,.17,.55,.05)*2.6, rim=box(az,el,2.85,.85,.16,.12,.04)*5, top=box(az,el,0,1.42,3.2,.1,.04)*1.2;
+    o[0]=r+k*1.0+f2*.82+rim*1.0+top;o[1]=g+k*.97+f2*.9+rim*.85+top;o[2]=b+k*.92+f2*1.0+rim*.66+top;
+  },
+  sunset(x,y,z,o){
+    const el=Math.asin(clamp(y,-1,1));
+    if(y<0){const f=Math.exp(y*6);o[0]=.05+.18*f;o[1]=.04+.09*f;o[2]=.04+.05*f;}
+    else{const t=Math.pow(clamp(el/(Math.PI/2),0,1),.45);o[0]=1.5*(1-t)+.10*t;o[1]=.68*(1-t)+.14*t;o[2]=.32*(1-t)+.36*t;}
+    const sx=Math.cos(.07)*Math.sin(.4),sy=Math.sin(.07),sz=-Math.cos(.07)*Math.cos(.4);
+    const c=x*sx+y*sy+z*sz,ang=Math.acos(clamp(c,-1,1));
+    const disk=sstep(.034,.026,ang)*40,glow=2.2*Math.exp(-ang*ang/.03);
+    o[0]+=disk+glow;o[1]+=disk*.82+glow*.55;o[2]+=disk*.6+glow*.25;
+  },
+  night(x,y,z,o){
+    const el=Math.asin(clamp(y,-1,1)),az=Math.atan2(x,-z);
+    const glow=Math.exp(-Math.abs(el)/.09);
+    o[0]=.012+.09*glow;o[1]=.016+.05*glow;o[2]=.04+.025*glow;
+    if(y<0){o[0]*=.6;o[1]*=.6;o[2]*=.7;}
+    const ci=Math.floor((az+Math.PI)/TAU*56),hb=.04+.2*hashf(ci,7);
+    if(el>=0&&el<hb){
+      o[0]=.01;o[1]=.011;o[2]=.016;
+      const wi=Math.floor((az+Math.PI)/TAU*56*5),wj=Math.floor(el/.022);
+      const fu=((az+Math.PI)/TAU*56*5)%1,fv=(el/.022)%1;
+      if(hashf(wi,wj+31)>.58&&fu>.2&&fu<.8&&fv>.25&&fv<.8){const q=.6+hashf(wi,wj)*1.2;o[0]=3.2*q;o[1]=2.0*q;o[2]=.8*q;}
+    }
+    const mx=Math.cos(.62)*Math.sin(-1.2),my=Math.sin(.62),mz=-Math.cos(.62)*Math.cos(-1.2);
+    const ang=Math.acos(clamp(x*mx+y*my+z*mz,-1,1)),moon=sstep(.03,.022,ang)*6+.25*Math.exp(-ang*ang/.02);
+    o[0]+=moon;o[1]+=moon;o[2]+=moon*1.08;
+  }};
+const RHO=[0,.1,.2,.3,.45,.6,.8,1];
+function dirOf(u,v,o){const az=(u-.5)*TAU,th=v*Math.PI,s=Math.sin(th);o[0]=s*Math.sin(az);o[1]=Math.cos(th);o[2]=-s*Math.cos(az);}
+function sampleLv(lv,x,y,z,rot,o){
+  const W=lv.w,H=lv.h,d=lv.d;
+  let u=Math.atan2(x,-z)/TAU+.5+rot;u-=Math.floor(u);
+  const v=Math.acos(clamp(y,-1,1))/Math.PI;
+  const fx=u*W-.5,fy=clamp(v*H-.5,0,H-1);
+  const x0=Math.floor(fx),y0=Math.floor(fy),tx=fx-x0,ty=fy-y0;
+  const xa=(x0%W+W)%W,xb=(xa+1)%W,ya=y0,yb=Math.min(H-1,y0+1);
+  const i00=(ya*W+xa)*3,i10=(ya*W+xb)*3,i01=(yb*W+xa)*3,i11=(yb*W+xb)*3;
+  const w00=(1-tx)*(1-ty),w10=tx*(1-ty),w01=(1-tx)*ty,w11=tx*ty;
+  o[0]=d[i00]*w00+d[i10]*w10+d[i01]*w01+d[i11]*w11;
+  o[1]=d[i00+1]*w00+d[i10+1]*w10+d[i01+1]*w01+d[i11+1]*w11;
+  o[2]=d[i00+2]*w00+d[i10+2]*w10+d[i01+2]*w01+d[i11+2]*w11;
+}
+function radInv(i){i=(i<<16|i>>>16)>>>0;i=((i&0x55555555)<<1|(i&0xAAAAAAAA)>>>1)>>>0;i=((i&0x33333333)<<2|(i&0xCCCCCCCC)>>>2)>>>0;i=((i&0x0F0F0F0F)<<4|(i&0xF0F0F0F0)>>>4)>>>0;i=((i&0x00FF00FF)<<8|(i&0xFF00FF00)>>>8)>>>0;return i/4294967296;}
+function ggxH(u1,u2,a,o){const ph=TAU*u1,ct=Math.sqrt((1-u2)/(1+(a*a-1)*u2)),st=Math.sqrt(1-ct*ct);o[0]=st*Math.cos(ph);o[1]=st*Math.sin(ph);o[2]=ct;}
+function frame(nx,ny,nz,T,B){let ux=0,uy=1,uz=0;if(Math.abs(ny)>.999){ux=1;uy=0;}
+  let tx=uy*nz-uz*ny,ty=uz*nx-ux*nz,tz=ux*ny-uy*nx;const l=Math.hypot(tx,ty,tz);tx/=l;ty/=l;tz/=l;
+  T[0]=tx;T[1]=ty;T[2]=tz;B[0]=ny*tz-nz*ty;B[1]=nz*tx-nx*tz;B[2]=nx*ty-ny*tx;}
+const ENVC={};
+function getEnv(name){
+  if(ENVC[name])return ENVC[name];
+  const f=ENVF[name],W0=512,H0=256,base=new Float32Array(W0*H0*3),o=[0,0,0],dv=[0,0,0];
+  for(let j=0;j<H0;j++)for(let i=0;i<W0;i++){let r=0,g=0,b=0;
+    for(let s=0;s<4;s++){dirOf((i+.25+.5*(s&1))/W0,(j+.25+.5*(s>>1))/H0,dv);f(dv[0],dv[1],dv[2],o);r+=o[0];g+=o[1];b+=o[2];}
+    const k=(j*W0+i)*3;base[k]=r/4;base[k+1]=g/4;base[k+2]=b/4;}
+  const pyr=[{w:W0,h:H0,d:base}];
+  while(pyr[pyr.length-1].w>32){const p=pyr[pyr.length-1],w=p.w/2,h=p.h/2,d=new Float32Array(w*h*3);
+    for(let j=0;j<h;j++)for(let i=0;i<w;i++)for(let c=0;c<3;c++){const a=p.d,q=(x,y)=>a[(y*p.w+x)*3+c];d[(j*w+i)*3+c]=(q(2*i,2*j)+q(2*i+1,2*j)+q(2*i,2*j+1)+q(2*i+1,2*j+1))/4;}
+    pyr.push({w,h,d});}
+  // GGX-prefiltered light integral per roughness (split-sum assumes n = v = r); source mip and size grow with the lobe
+  const SRC={.1:[1,160],.2:[2,128],.3:[2,96],.45:[3,64],.6:[3,64],.8:[4,64],1:[4,64]},NS=96;
+  const levels=[{rho:0,w:W0,h:H0,d:base}],h=[0,0,0],T=[0,0,0],B=[0,0,0],s=[0,0,0];
+  for(const rho of RHO.slice(1)){
+    const [si,w]=SRC[rho],src=pyr[si],hh=w/2,d=new Float32Array(w*hh*3),a=rho*rho;
+    const H=[];for(let k=0;k<NS;k++){ggxH((k+.5)/NS,radInv(k+1),a,h);H.push(h[0],h[1],h[2]);}
+    for(let j=0;j<hh;j++)for(let i=0;i<w;i++){
+      dirOf((i+.5)/w,(j+.5)/hh,dv);const nx=dv[0],ny=dv[1],nz=dv[2];frame(nx,ny,nz,T,B);
+      let r=0,g=0,b=0,ws=0;
+      for(let k=0;k<NS;k++){const hx=T[0]*H[3*k]+B[0]*H[3*k+1]+nx*H[3*k+2],hy=T[1]*H[3*k]+B[1]*H[3*k+1]+ny*H[3*k+2],hz=T[2]*H[3*k]+B[2]*H[3*k+1]+nz*H[3*k+2];
+        const vh=nx*hx+ny*hy+nz*hz,lx=2*vh*hx-nx,ly=2*vh*hy-ny,lz=2*vh*hz-nz,nl=nx*lx+ny*ly+nz*lz;
+        if(nl<=0)continue;sampleLv(src,lx,ly,lz,0,s);r+=s[0]*nl;g+=s[1]*nl;b+=s[2]*nl;ws+=nl;}
+      const q=(j*w+i)*3;d[q]=r/ws;d[q+1]=g/ws;d[q+2]=b/ws;}
+    levels.push({rho,w,h:hh,d});
+  }
+  return(ENVC[name]={levels,base:levels[0]});
+}
+function lightInt(env,rho,x,y,z,rot,o,t){
+  const L=env.levels;let k=0;while(k<L.length-2&&L[k+1].rho<rho)k++;
+  const a=L[k],b=L[k+1],f=clamp((rho-a.rho)/(b.rho-a.rho),0,1);
+  sampleLv(a,x,y,z,rot,o);if(f>0){sampleLv(b,x,y,z,rot,t);o[0]+=(t[0]-o[0])*f;o[1]+=(t[1]-o[1])*f;o[2]+=(t[2]-o[2])*f;}
+}
+// Lazarov's analytic fit of the split-sum BRDF LUT: returns the scale F1 and bias F2
+function envBRDF(rho,nv){const r0=1-rho,r1=.0425-.0275*rho,r2=1.04-.572*rho,r3=-.04+.022*rho;const a=Math.min(r0*r0,Math.pow(2,-9.28*nv))*r0+r1;return[a*-1.04+r2,a*1.04+r3];}
+const aces=x=>{x*=.9;return clamp(x*(2.51*x+.03)/(x*(2.43*x+.59)+.14),0,1);};
+const toByte=x=>Math.round(255*Math.pow(aces(x),1/2.2));
+// per-pixel geometry of an orthographic sphere seen from a camera tilted down by `tilt`
+function sphereGeom(S,tilt){
+  const n=S*S,G={S,idx:[],nw:[],rw:[],nv:[],cov:[]};const ct=Math.cos(tilt),st=Math.sin(tilt);
+  const rot=(x,y,z,out)=>{out.push(x,y*ct-z*st,y*st+z*ct);};
+  for(let j=0;j<S;j++)for(let i=0;i<S;i++){
+    const x=(i+.5)/S*2-1,y=1-(j+.5)/S*2,rr=x*x+y*y;const cov=clamp((1-Math.sqrt(rr))*S*.5+.5,0,1);if(cov<=0)continue;
+    const z=Math.sqrt(Math.max(0,1-rr)),nv=Math.max(z,1e-3);
+    G.idx.push(j*S+i);G.cov.push(cov);G.nv.push(nv);rot(x,y,z,G.nw);rot(2*nv*x,2*nv*y,2*nv*z-1,G.rw);}
+  return G;
+}
+function shadeSS(img,G,env,M,rot,ox,oy,W){
+  const o=[0,0,0],t=[0,0,0],ld=[0,0,0],d=img.data;
+  const F0=[0,1,2].map(c=>.04*(1-M.m)+M.m*M.a[c]);
+  for(let p=0;p<G.idx.length;p++){
+    const q=3*p;lightInt(env,M.r,G.rw[q],G.rw[q+1],G.rw[q+2],rot,o,t);
+    lightInt(env,1,G.nw[q],G.nw[q+1],G.nw[q+2],rot,ld,t);
+    const [A,B]=envBRDF(M.r,G.nv[p]);
+    const pi=G.idx[p],px=pi%G.S,py=(pi/G.S)|0,k=((py+oy)*W+px+ox)*4,cov=G.cov[p];
+    for(let c=0;c<3;c++){const v=(1-M.m)*M.a[c]*ld[c]+(F0[c]*A+B)*o[c];d[k+c]=toByte(v);}
+    d[k+3]=Math.round(255*cov);
+  }
+}
+const ALB={silver:{en:'Silver',zh:'银',a:[.96,.95,.92]},gold:{en:'Gold',zh:'金',a:[1,.77,.34]},copper:{en:'Copper',zh:'铜',a:[.95,.62,.52]},red:{en:'Red',zh:'红',a:[.75,.06,.05]},white:{en:'White',zh:'白',a:[.82,.82,.82]}};
+const ENVN={studio:{en:'Studio',zh:'摄影棚'},sunset:{en:'Sunset',zh:'日落'},night:{en:'Night street',zh:'夜晚街道'}};
+
+/* ---------------- deck engine ---------------- */
+const stage=$('#stage'),vp=$('#viewport');
+const slides=$$('.slide',stage);
+let cur=0,step=0;const hooks={};
+const SEC={cover:['3DV 2025','3DV 2025'],problem:['Problem','问题'],bg:['Background','背景'],method:['Method','方法'],exp:['Experiments','实验'],end:['Wrap-up','总结']};
+function fit(){const s=Math.min(vp.clientWidth/1600,vp.clientHeight/900);stage.style.transform=`translate(-50%,-50%) scale(${s})`;}
+addEventListener('resize',fit);fit();
+function applySteps(el){$$('[data-s]',el).forEach(n=>n.classList.toggle('on',+n.dataset.s<=step));}
+function chrome(){
+  $('#count').textContent=`${cur+1} / ${slides.length}`;
+  const max=+slides[cur].dataset.steps||0;
+  $('#prog').style.width=((cur+(max?step/(max+1):0))/(slides.length-1)*100)+'%';
+  const s=SEC[slides[cur].dataset.sec];$('#secname').textContent='RISE-SDF · '+L(s[0],s[1]);
+}
+function playVideos(el,on){$$('video[data-src]',el).forEach(v=>{if(on){if(!v.src)v.src=v.dataset.src;const p=v.play();p&&p.catch&&p.catch(()=>{});}else v.pause();});}
+function show(i,st){
+  i=Math.max(0,Math.min(slides.length-1,i));
+  const old=slides[cur];
+  if(i!==cur){old.classList.remove('active');hooks[old.id]?.leave?.(old);playVideos(old,false);}
+  slides.forEach((s,k)=>s.classList.toggle('past',k<i));
+  const entering=!slides[i].classList.contains('active');
+  cur=i;const el=slides[cur];el.classList.add('active');
+  step=st||0;applySteps(el);
+  if(entering){hooks[el.id]?.enter?.(el);playVideos(el,true);}
+  hooks[el.id]?.step?.(step,el);
+  chrome();
+}
+function next(){const el=slides[cur],max=+el.dataset.steps||0;if(step<max){step++;applySteps(el);hooks[el.id]?.step?.(step,el);chrome();}else if(cur<slides.length-1)show(cur+1,0);}
+function prev(){const el=slides[cur];if(step>0){step--;applySteps(el);hooks[el.id]?.step?.(step,el);chrome();}else if(cur>0){const p=slides[cur-1];show(cur-1,+p.dataset.steps||0);}}
+const zoom=$('#zoom');
+function openZoom(img){$('img',zoom).src=img.src;$('img',zoom).alt=img.alt;zoom.hidden=false;}
+function closeZoom(){zoom.hidden=true;}
+zoom.addEventListener('click',closeZoom);
+stage.addEventListener('click',e=>{const img=e.target.closest('.zoomable');if(img){e.stopPropagation();openZoom(img);}});
+function toggleLang(){LANG=LANG==='zh'?'en':'zh';root.dataset.lang=LANG;try{localStorage.setItem('rs-lang',LANG);}catch(e){}buildToc();chrome();Object.values(hooks).forEach(h=>h.lang&&h.lang());}
+$('#b-lang').addEventListener('click',toggleLang);
+document.addEventListener('keydown',e=>{
+  const t=e.target,tag=t.tagName;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  const k=e.key;
+  if(!zoom.hidden&&(k==='Escape'||k===' '||k==='Enter'||k.startsWith('Arrow'))){closeZoom();e.preventDefault();return;}
+  if(!$('#toc').hidden&&(k==='Escape'||k==='o'||k==='O')){toggleToc(false);e.preventDefault();return;}
+  const inForm=tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA';
+  if(inForm&&(k.startsWith('Arrow')||k==='Home'||k==='End'))return;
+  if((k===' '||k==='Enter')&&(tag==='BUTTON'||tag==='A'||inForm))return;
+  if(['ArrowRight','ArrowDown','PageDown',' ','Enter'].includes(k)){next();e.preventDefault();}
+  else if(['ArrowLeft','ArrowUp','PageUp','Backspace'].includes(k)){prev();e.preventDefault();}
+  else if(k==='Home'){show(0);e.preventDefault();}
+  else if(k==='End'){show(slides.length-1);e.preventDefault();}
+  else if(k==='f'||k==='F'){toggleFs();}
+  else if(k==='o'||k==='O'){toggleToc();}
+  else if(k==='l'||k==='L'){toggleLang();}
+});
+stage.addEventListener('click',e=>{
+  if(e.target.closest('.ix,button,input,a,video,label,canvas,table,#chrome,#toc,#zoom,.zoomable'))return;
+  if(window.getSelection&&String(getSelection()).length)return;
+  const r=stage.getBoundingClientRect();
+  if(e.clientX<r.left+r.width*0.18)prev();else next();
+});
+let sx=null,sy=null;
+stage.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'||e.target.closest('.ix,canvas,input'))return;sx=e.clientX;sy=e.clientY;});
+stage.addEventListener('pointerup',e=>{if(sx==null)return;const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;if(Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)){dx<0?next():prev();}});
+$('#b-next').addEventListener('click',next);$('#b-prev').addEventListener('click',prev);
+function toggleFs(){try{if(document.fullscreenElement)document.exitFullscreen();else{const p=vp.requestFullscreen&&vp.requestFullscreen();if(p&&p.catch)p.catch(()=>{});}}catch(e){}}
+$('#b-fs').addEventListener('click',toggleFs);
+document.addEventListener('fullscreenchange',()=>setTimeout(fit,50));
+function buildToc(){const ol=$('#toc-list');ol.innerHTML='';slides.forEach((s,i)=>{const li=document.createElement('li');const b=document.createElement('button');b.type='button';
+  b.innerHTML=`<span class="n">${String(i+1).padStart(2,'0')}</span><span></span>`;b.lastChild.textContent=L(s.dataset.te,s.dataset.tz);b.addEventListener('click',()=>{toggleToc(false);show(i);});li.appendChild(b);ol.appendChild(li);});}
+function toggleToc(force){const t=$('#toc');const open=force===undefined?t.hidden:force;t.hidden=!open;if(open){const b=$$('#toc-list button')[cur];b&&b.focus();}}
+$('#b-toc').addEventListener('click',()=>toggleToc());
+buildToc();
+
+/* ================= slide hooks ================= */
+
+/* --- cover: three materials under a rotating studio light --- */
+hooks.cover=(()=>{
+  const cv=$('#cv-cover'),ctx=cv.getContext('2d'),S=360,G=sphereGeom(S,.22),W=cv.width,H=cv.height;
+  const MATS=[{a:[.96,.95,.92],m:1,r:.05},{a:[1,.77,.34],m:1,r:.35},{a:[.75,.06,.05],m:0,r:.3}];
+  let env=null,raf=0,img=null,last=0;
+  function frameF(now){
+    if(!env)env=getEnv('studio');
+    if(now-last>33||RM){last=now;
+      img=img||ctx.createImageData(W,H);img.data.fill(0);
+      const rot=RM?.08:now/1000*.025;
+      MATS.forEach((M,i)=>shadeSS(img,G,env,M,rot,30+i*(S+60),(H-S)/2|0,W));
+      ctx.putImageData(img,0,0);}
+    if(!RM)raf=requestAnimationFrame(frameF);
+  }
+  return{enter(){cancelAnimationFrame(raf);raf=requestAnimationFrame(frameF);},leave(){cancelAnimationFrame(raf);}};
+})();
+
+/* --- prior work table: click a row to see its toaster relighting --- */
+hooks.prior=(()=>{
+  const ROWS=[
+    {m:'NDR',k:null,rep:['DMTet mesh','DMTet 网格'],fail:['—','—']},
+    {m:'NDRMC',k:'ndrmc',rep:['DMTet mesh','DMTet 网格'],fail:['limited by low-quality geometry','受限于低质量的几何']},
+    {m:'NMF',k:'nmf',rep:['NeRF density','NeRF 密度场'],fail:['noise from Monte Carlo sampling','Monte Carlo 采样带来的噪声']},
+    {m:'ENVIDR',k:'envidr',rep:['neural SDF','神经 SDF'],fail:['blurry, shifted colours (light distilled into an MLP)','模糊、偏色（光照被蒸馏进 MLP）']},
+    {m:'GShader',k:'gs',rep:['3D Gaussians','3D Gaussian'],fail:['limited by low-quality geometry','受限于低质量的几何']},
+    {m:'NeRO',k:'nero',rep:['neural SDF','神经 SDF'],fail:['aliasing after the Blender export','导出到 Blender 后出现锯齿']},
+    {m:'RISE-SDF',k:'ours',src:OURS,ours:true,rep:['neural SDF','神经 SDF'],fail:['—','—']}];
+  const tb=$('#mt tbody');let sel='NeRO';
+  function build(){tb.innerHTML='';ROWS.forEach(r=>{const d=MAIN[r.src||r.m];const tr=document.createElement('tr');
+    tr.className=(r.k?'pick':'')+(r.ours?' ours':'')+(r.m===sel?' sel':'');
+    tr.innerHTML=`<td class="m"></td><td></td><td class="c ${d.pb?'y':'n'}">${d.pb?'✓':'✗'}</td><td class="c ${d.e2e?'y':'n'}">${d.e2e?'✓':'✗'}</td><td class="num">${hrs(d.t)}</td><td></td>`;
+    tr.children[0].textContent=r.m;tr.children[1].textContent=L(...r.rep);tr.children[5].textContent=L(...r.fail);
+    if(r.k){tr.tabIndex=0;tr.addEventListener('click',()=>pick(r.m));tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();pick(r.m);}});}
+    tb.appendChild(tr);});}
+  function pick(m){sel=m;const r=ROWS.find(x=>x.m===m);$$('tr',tb).forEach((tr,i)=>tr.classList.toggle('sel',ROWS[i].m===m));
+    $('#pr-img').src=`image/talk/cmp/relight_toaster_${r.k}.jpg`;$('#pr-img').alt=r.m+' relighting of the toaster';$('#pr-cap').textContent=r.m;
+    const v=MAIN[r.src||r.m].v[8];
+    $('#pr-note').innerHTML=L(`<b>${r.m}</b>: ${r.fail[0]==='—'?'see the results section':r.fail[0]}. Average relighting PSNR <b>${v.toFixed(2)}</b>.`,`<b>${r.m}</b>：${r.fail[1]==='—'?'见结果部分':r.fail[1]}。平均重打光 PSNR <b>${v.toFixed(2)}</b>。`);}
+  build();pick(sel);
+  return{lang(){build();pick(sel);}};
+})();
+
+/* --- NeuS: SDF along a ray -> opacity -> weights --- */
+hooks.sdf=(()=>{
+  const svg=$('#sv-sdf'),S=$('#sdf-s'),N=$('#sdf-n');
+  const OBJ=[[.40,.70],[.84,.95]];
+  const sdf=t=>{let ins=null,d=1e9;for(const [a,b] of OBJ){if(t>=a&&t<=b)ins=Math.min(t-a,b-t);d=Math.min(d,t<a?a-t:t>b?t-b:0);}return ins!=null?-ins:d;};
+  const sig=()=>Math.pow(10,1+S.value*2.2); // sigma from 10 to ~1600
+  function draw(){
+    svg.innerHTML='';const s=sig(),n=+N.value;$('#sdf-sv').textContent=(1/s).toFixed(4);$('#sdf-nv').textContent=n;
+    const W=900,ml=60,mr=20,X=t=>ml+t*(W-ml-mr);
+    const top={y0:20,h:200,lo:-.16,hi:.42},bot={y0:270,h:150};
+    const Ys=v=>top.y0+top.h*(1-(v-top.lo)/(top.hi-top.lo));
+    // object spans
+    OBJ.forEach(([a,b],i)=>{E('rect',{x:X(a),y:top.y0,width:X(b)-X(a),height:bot.y0+bot.h-top.y0,fill:i?'rgba(139,148,167,.07)':'rgba(85,205,189,.07)'},svg);
+      E('text',{x:(X(a)+X(b))/2,y:top.y0+16,'text-anchor':'middle',class:'sub'},svg,L(i?'object 2':'object 1',i?'物体 2':'物体 1'));});
+    const g=E('g',{class:'grid'},svg);[-.1,0,.1,.2,.3,.4].forEach(v=>{E('line',{x1:ml,x2:W-mr,y1:Ys(v),y2:Ys(v),style:v===0?`stroke:${C['line-2']};stroke-width:1.5`:''},g);E('text',{x:ml-10,y:Ys(v)+5,'text-anchor':'end'},svg,v.toFixed(1));});
+    let p='';for(let k=0;k<=300;k++){const t=k/300;p+=(k?'L':'M')+X(t).toFixed(1)+' '+Ys(sdf(t)).toFixed(1);}
+    E('path',{d:p,fill:'none',stroke:C.rad,'stroke-width':3},svg);
+    let q='';for(let k=0;k<=300;k++){const t=k/300,ph=1/(1+Math.exp(-s*sdf(t)));q+=(k?'L':'M')+X(t).toFixed(1)+' '+(top.y0+top.h*(1-ph*.95)).toFixed(1);}
+    E('path',{d:q,fill:'none',stroke:C.muted,'stroke-width':1.6,'stroke-dasharray':'5 5'},svg);
+    E('text',{x:W-mr,y:top.y0+top.h+22,'text-anchor':'end',class:'sub'},svg,L('— s(t)   - - Φσ(s(t)), scaled to the panel','— s(t)   - - Φσ(s(t))，按面板缩放'));
+    // weights
+    const ts=[],al=[],w=[];for(let i=0;i<=n;i++)ts.push((i+.5)/(n+1));
+    const Phi=t=>1/(1+Math.exp(-s*sdf(t)));
+    let T=1,Ws=0,Tt=0,W2=0;
+    // NeuS assigns each weight to a section between two samples; place it at the section midpoint
+    const mid=[];for(let i=0;i<n;i++)mid.push((ts[i]+ts[i+1])/2);
+    for(let i=0;i<n;i++){const a=Math.max((Phi(ts[i])-Phi(ts[i+1]))/Math.max(Phi(ts[i]),1e-12),0);al.push(a);const wi=T*a;w.push(wi);T*=1-a;Ws+=wi;Tt+=wi*mid[i];if(mid[i]>.8)W2+=wi;}
+    const wmax=Math.max(.05,...w),Yb=v=>bot.y0+bot.h*(1-v/wmax),bw=Math.max(2,(W-ml-mr)/(n+1)*.7);
+    E('line',{x1:ml,x2:W-mr,y1:bot.y0+bot.h,y2:bot.y0+bot.h,stroke:C['line-2']},svg);
+    E('text',{x:ml-10,y:bot.y0+12,'text-anchor':'end'},svg,'w');
+    w.forEach((wi,i)=>{E('rect',{x:X(mid[i])-bw/2,y:Yb(wi),width:bw,height:bot.y0+bot.h-Yb(wi),rx:2,fill:C.gold,'fill-opacity':.9},svg);});
+    ts.forEach(t=>E('circle',{cx:X(t),cy:bot.y0+bot.h+10,r:2.6,fill:C.dim},svg));
+    E('line',{x1:X(Tt),x2:X(Tt),y1:bot.y0-8,y2:bot.y0+bot.h+20,stroke:C.pbr,'stroke-width':2,'stroke-dasharray':'6 4'},svg);
+    E('text',{x:X(Tt)+8,y:bot.y0+4,style:`fill:${C.pbr}`},svg,'T');
+    [0,.2,.4,.6,.8].forEach(t=>E('text',{x:X(t),y:bot.y0+bot.h+40,'text-anchor':'middle'},svg,t.toFixed(1)));
+    E('text',{x:W-mr,y:bot.y0+bot.h+40,'text-anchor':'end'},svg,'t →');
+    $('#sdf-T').textContent='T = '+Tt.toFixed(3);$('#sdf-W').textContent=Ws.toFixed(3);$('#sdf-W2').textContent=W2.toFixed(3);
+  }
+  S.addEventListener('input',draw);N.addEventListener('input',draw);draw();
+  return{enter(){draw();},lang(){draw();}};
+})();
+
+/* --- split-sum vs Monte Carlo sphere --- */
+hooks.splitsum=(()=>{
+  const cv=$('#cv-ball'),ctx=cv.getContext('2d'),S=cv.width,G=sphereGeom(S,.18);
+  const ecv=$('#cv-env'),ectx=ecv.getContext('2d');
+  let mode='ss',spp=128,envName='studio',alb='gold',rot=.1,raf=0,on=false;
+  const R=$('#ss-r'),Mm=$('#ss-m');
+  const mat=()=>({a:ALB[alb].a,m:+Mm.value,r:+R.value});
+  let acc=null,n=0;
+  function stat(){const M=mat();$('#ss-rv').textContent=M.r.toFixed(2);$('#ss-mv').textContent=M.m.toFixed(2);
+    $('#ss-stat').textContent=mode==='ss'?L('split-sum: 2 lookups per pixel, no noise','split-sum：每像素查 2 次表，没有噪声'):L(`Monte Carlo: ${n} / ${spp} samples per pixel`,`Monte Carlo：每像素 ${n} / ${spp} 个样本`);
+    $('#ss-envcap').innerHTML=L(`Light integral at ρ = ${M.r.toFixed(2)}: the environment prefiltered with a GGX lobe, stored as mip levels. Rougher → blurrier.`,`ρ = ${M.r.toFixed(2)} 时的光照积分：用 GGX 波瓣预滤波的环境贴图，按 mip 层存储。越粗糙越模糊。`);}
+  function drawEnv(env){const W=ecv.width,H=ecv.height,img=ectx.createImageData(W,H),o=[0,0,0],t=[0,0,0],dv=[0,0,0],r=+R.value;
+    for(let j=0;j<H;j++)for(let i=0;i<W;i++){dirOf((i+.5)/W,(j+.5)/H,dv);lightInt(env,r,dv[0],dv[1],dv[2],rot,o,t);const k=(j*W+i)*4;img.data[k]=toByte(o[0]);img.data[k+1]=toByte(o[1]);img.data[k+2]=toByte(o[2]);img.data[k+3]=255;}
+    ectx.putImageData(img,0,0);}
+  function renderSS(){const env=getEnv(envName);const img=ctx.createImageData(S,S);shadeSS(img,G,env,mat(),rot,0,0,S);ctx.putImageData(img,0,0);drawEnv(env);stat();}
+  // progressive Monte Carlo: GGX importance sampling for specular, cosine sampling for diffuse
+  const T=[0,0,0],B=[0,0,0],s=[0,0,0],h=[0,0,0];
+  function mcBatch(k){
+    const env=getEnv(envName),base=env.base,M=mat(),a=Math.max(M.r*M.r,1e-4),kk=a/2;
+    const F0=[0,1,2].map(c=>.04*(1-M.m)+M.m*M.a[c]);
+    const ct=Math.cos(.18),st=Math.sin(.18),vx=0,vy=-st,vz=ct; // view vector, tilted like the geometry
+    for(let p=0;p<G.idx.length;p++){
+      const q=3*p,nx=G.nw[q],ny=G.nw[q+1],nz=G.nw[q+2],nv=G.nv[p];frame(nx,ny,nz,T,B);
+      for(let i=0;i<k;i++){
+        ggxH(Math.random(),Math.random(),a,h);
+        const hx=T[0]*h[0]+B[0]*h[1]+nx*h[2],hy=T[1]*h[0]+B[1]*h[1]+ny*h[2],hz=T[2]*h[0]+B[2]*h[1]+nz*h[2];
+        const vh=vx*hx+vy*hy+vz*hz,lx=2*vh*hx-vx,ly=2*vh*hy-vy,lz=2*vh*hz-vz,nl=nx*lx+ny*ly+nz*lz;
+        if(nl>0&&vh>0){sampleLv(base,lx,ly,lz,rot,s);const nh=h[2],g1=x=>x/(x*(1-kk)+kk),Gs=g1(nv)*g1(nl),fw=Math.pow(1-vh,5),wgt=Gs*vh/(nv*nh);
+          for(let c=0;c<3;c++)acc[q+c]+=s[c]*(F0[c]+(1-F0[c])*fw)*wgt;}
+        const u1=Math.random(),u2=Math.random(),r=Math.sqrt(u1),ph=TAU*u2,dx=r*Math.cos(ph),dy=r*Math.sin(ph),dz=Math.sqrt(1-u1);
+        const lx2=T[0]*dx+B[0]*dy+nx*dz,ly2=T[1]*dx+B[1]*dy+ny*dz,lz2=T[2]*dx+B[2]*dy+nz*dz;sampleLv(base,lx2,ly2,lz2,rot,s);
+        for(let c=0;c<3;c++)acc[q+c]+=(1-M.m)*M.a[c]*s[c];
+      }
+    }
+    n+=k;
+    const img=ctx.createImageData(S,S),d=img.data;
+    for(let p=0;p<G.idx.length;p++){const pi=G.idx[p],q=3*p;for(let c=0;c<3;c++)d[pi*4+c]=toByte(acc[q+c]/n);d[pi*4+3]=Math.round(255*G.cov[p]);}
+    ctx.putImageData(img,0,0);stat();
+  }
+  function loop(){raf=0;if(!on||mode!=='mc'||n>=spp)return;mcBatch(Math.min(spp-n,n<16?2:8));raf=requestAnimationFrame(loop);}
+  function restart(){cancelAnimationFrame(raf);raf=0;
+    if(mode==='ss'){renderSS();return;}
+    acc=new Float32Array(G.idx.length*3);n=0;drawEnv(getEnv(envName));if(on)raf=requestAnimationFrame(loop);}
+  function segs(){
+    segInit($('#ss-mode'),[{key:'ss',label:'Split-sum'},{key:'mc',label:'Monte Carlo'}],mode,k=>{mode=k;$$('#ss-spp button').forEach(b=>b.disabled=mode!=='mc');restart();});
+    segInit($('#ss-spp'),[16,128,1024].map(v=>({key:v,label:v+' spp'})),spp,k=>{spp=k;restart();});
+    $$('#ss-spp button').forEach(b=>b.disabled=mode!=='mc');
+    segInit($('#ss-alb'),Object.keys(ALB).map(k=>({key:k,label:L(ALB[k].en,ALB[k].zh)})),alb,k=>{alb=k;restart();});
+    segInit($('#ss-env'),Object.keys(ENVN).map(k=>({key:k,label:L(ENVN[k].en,ENVN[k].zh)})),envName,k=>{envName=k;restart();});
+  }
+  segs();
+  let pend=0;const live=()=>{if(pend)return;pend=requestAnimationFrame(()=>{pend=0;restart();});};
+  R.addEventListener('input',live);Mm.addEventListener('input',live);
+  let drag=null;
+  cv.addEventListener('pointerdown',e=>{drag={x:e.clientX,r:rot};cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointermove',e=>{if(!drag)return;const sc=cv.getBoundingClientRect().width;rot=drag.r-(e.clientX-drag.x)/sc*.5;live();});
+  cv.addEventListener('pointerup',()=>{drag=null;});cv.addEventListener('pointercancel',()=>{drag=null;});
+  return{enter(){on=true;restart();},leave(){on=false;cancelAnimationFrame(raf);raf=0;},lang(){segs();stat();}};
+})();
+
+/* --- information sharing: build up the shared heads --- */
+hooks.share=(()=>{
+  const sh=$('#sh'),eq=$('#sh-eq');
+  const LEDE=[['Stage 1 trains the radiance field: geometry plus a reflection-aware colour model.','阶段一训练辐射场：几何加一个感知反射的颜色模型。'],
+    ['Stage 2 adds physically based shading on top of the same network.','阶段二在同一个网络上加入基于物理的着色。'],
+    ['Blend weight and metallic play the same role, so one head predicts both.','混合权重和金属度作用相同，所以由一个头同时预测。'],
+    ['Diffuse colour and albedo are alike, so one head predicts both.','漫反射颜色和反照率很相似，所以由一个头同时预测。'],
+    ['Both losses train everything together, including the geometry.','两个损失一起训练所有部分，包括几何。']];
+  function apply(n){sh.classList.toggle('s0',n<1);
+    $$('#sh [data-k]').forEach(x=>x.classList.toggle('hl',(n===2&&x.dataset.k==='b')||(n===3&&x.dataset.k==='cd')));
+    eq.classList.toggle('share-b',n===2);eq.classList.toggle('share-cd',n===3);
+    $('#sh-lede').textContent=L(...LEDE[n]);}
+  return{step(n){apply(n);},lang(){apply(step);}};
+})();
+
+/* --- sharing ablation: dumbbells from w/o sharing to full --- */
+hooks.shareev=(()=>{
+  const a=MAIN['Ours (w.o. info-share)'].v,b=MAIN[OURS].v;
+  const ROWS=[[0,'Normal MAE ↓','法线 MAE ↓',3],[1,'Roughness PSNR','粗糙度 PSNR',2],[2,'Albedo PSNR','反照率 PSNR',2],[5,'Novel view PSNR','新视角 PSNR',2],[8,'Relighting PSNR','重打光 PSNR',2]];
+  function draw(){const box=$('#sh-dumb');box.innerHTML='';
+    ROWS.forEach(([k,en,zh,d],i)=>{const row=document.createElement('div');row.className='row';row.innerHTML='<span class="k"></span>';row.firstChild.textContent=L(en,zh);
+      const svg=E('svg',{viewBox:'0 0 420 44'},row);const lo=Math.min(a[k],b[k]),hi=Math.max(a[k],b[k]),pad=(hi-lo)*.9+.05,X=v=>40+(v-(lo-pad))/((hi+pad)-(lo-pad))*340;
+      E('line',{x1:X(a[k]),x2:X(b[k]),y1:22,y2:22,stroke:C['line-2'],'stroke-width':6,'stroke-linecap':'round'},svg);
+      E('circle',{cx:X(a[k]),cy:22,r:8,fill:C.base},svg);E('circle',{cx:X(b[k]),cy:22,r:9,fill:C.gold,class:'fadein'},svg);
+      const left=a[k]<b[k];
+      E('text',{x:X(a[k])+(left?-14:14),y:27,'text-anchor':left?'end':'start',class:'val',style:`fill:${C.muted};font-family:var(--f-mono);font-size:15px`},svg,a[k].toFixed(d));
+      E('text',{x:X(b[k])+(left?14:-14),y:27,'text-anchor':left?'start':'end',style:`fill:${C['gold-2']};font-family:var(--f-mono);font-size:15px`},svg,b[k].toFixed(d));
+      box.appendChild(row);});}
+  draw();return{enter(){draw();},lang(){draw();}};
+})();
+
+/* --- indirect light: 2D ray diagram --- */
+hooks.indirect=(()=>{
+  const cv=$('#cv-ind'),ctx=cv.getContext('2d'),K=2,W=900,H=500;
+  const FL=420,WX=700,WW=24,WT=150,CAM=[100,120],RT=.25;
+  let mode='mlp',hx=470,drag=false;
+  const R=$('#ind-r');
+  const EQ={
+    ss:{k:['first split-sum: direct light','第一次 split-sum：直接光'],eq:'\\[\\mathbf l^s_i=\\mathrm{Mipmap}(\\hat{\\mathbf d}_i,\\rho_i)\\]',
+      t:['Training and relighting both start here: the reflected lobe reads the environment map, as if nothing else were around.','训练和重打光都从这里开始：反射波瓣直接读取环境贴图，仿佛周围什么都没有。']},
+    mlp:{k:['training: indirect-light MLP','训练：间接光 MLP'],eq:'\\[\\mathbf C=\\mathbf C_d+(1-O)\\,\\mathbf C_s+O\\,\\mathbf C_{ind},\\qquad O=\\sum_{i=1}^{M}w_i\\]\\[\\mathbf C_{ind}=f_{ind}\\big(\\mathbf N,e(\\hat{\\mathbf d}),\\boldsymbol\\beta_{\\hat{\\mathbf x}}\\big)\\]',
+      t:['From the expected hit point, march the reflected ray through the SDF only. Its accumulated weight O says how much of the specular light comes from the object itself; an MLP predicts that part.','从期望交点出发，沿反射方向只在 SDF 里行进。累积权重 O 表示高光有多少来自物体自身；这一部分由一个 MLP 预测。']},
+    ss2:{k:['relighting: second split-sum','重打光：第二次 split-sum'],eq:'\\[\\begin{aligned}\\mathbf l^s_{relight}\\approx\\;&\\big(\\mathbb 1[\\rho>\\rho_t]+\\mathbb 1[\\rho\\le\\rho_t](1-O)\\big)\\,\\mathbf l^s\\\\&+\\mathbb 1[\\rho\\le\\rho_t]\\,O\\,L_{ind}(\\hat{\\mathbf x},\\hat{\\mathbf d})\\end{aligned}\\]\\[L_{ind}=\\mathbf c^{pbr}_d(\\hat{\\mathbf x}\')+\\mathbf c^{pbr}_s(\\hat{\\mathbf x}\')\\]',
+      t:['The MLP only knows the training light. For a new light, trace one bounce to x̂′ and shade it with split-sum again, but only for smooth surfaces (ρ ≤ ρt), where indirect light matters.','MLP 只认识训练时的光照。换新光照时，追踪一次反弹到 x̂′，在那里再用一次 split-sum 着色；只对光滑表面（ρ ≤ ρt）这样做，因为间接光主要影响光滑表面。']}};
+  const sdfWall=(x,y)=>{const cx=WX+WW/2,cy=(WT+FL)/2,hw=WW/2,hh=(FL-WT)/2,dx=Math.abs(x-cx)-hw,dy=Math.abs(y-cy)-hh;return Math.hypot(Math.max(dx,0),Math.max(dy,0))+Math.min(Math.max(dx,dy),0);};
+  function arrow(x0,y0,x1,y1,col,w,dash){ctx.save();ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=w;if(dash)ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();ctx.setLineDash([]);
+    const a=Math.atan2(y1-y0,x1-x0);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x1-12*Math.cos(a-.4),y1-12*Math.sin(a-.4));ctx.lineTo(x1-12*Math.cos(a+.4),y1-12*Math.sin(a+.4));ctx.closePath();ctx.fill();ctx.restore();}
+  function lobe(x,y,ang,rho,col){const half=.06+rho*1.1,len=150-rho*60;ctx.save();ctx.fillStyle=col;ctx.globalAlpha=.32;ctx.beginPath();ctx.moveTo(x,y);
+    for(let k=0;k<=24;k++){const t=-half+2*half*k/24,r=len*Math.pow(Math.cos(t/half*Math.PI/2),.6);ctx.lineTo(x+r*Math.cos(ang+t),y+r*Math.sin(ang+t));}ctx.closePath();ctx.fill();ctx.restore();}
+  function label(t,x,y,col,al){ctx.save();ctx.font='500 16px "JetBrains Mono", "Noto Sans SC", monospace';ctx.fillStyle=col;ctx.textAlign=al||'left';ctx.fillText(t,x,y);ctx.restore();}
+  function draw(){
+    const rho=+R.value;$('#ind-rv').textContent=rho.toFixed(2);
+    ctx.setTransform(K,0,0,K,0,0);ctx.clearRect(0,0,W,H);
+    // sky / environment band
+    const g=ctx.createLinearGradient(0,0,0,FL);g.addColorStop(0,'rgba(242,182,78,.10)');g.addColorStop(1,'rgba(242,182,78,0)');ctx.fillStyle=g;ctx.fillRect(0,0,W,FL);
+    label(L('environment map L','环境贴图 L'),W-20,28,C.gold,'right');
+    // object: floor + wall
+    ctx.fillStyle='#2a303d';ctx.fillRect(40,FL,W-80,14);ctx.fillRect(WX,WT,WW,FL-WT);
+    ctx.strokeStyle=C['line-2'];ctx.lineWidth=1;ctx.strokeRect(40,FL,W-80,14);ctx.strokeRect(WX,WT,WW,FL-WT);
+    label(L('glossy object (floor + wall)','高光物体（地面 + 墙）'),W-44,FL+40,C.dim,'right');
+    // camera
+    ctx.save();ctx.fillStyle=C.fg;ctx.translate(CAM[0],CAM[1]);ctx.rotate(Math.atan2(FL-CAM[1],hx-CAM[0]));ctx.fillRect(-26,-14,30,28);ctx.beginPath();ctx.moveTo(4,0);ctx.lineTo(18,-12);ctx.lineTo(18,12);ctx.closePath();ctx.fill();ctx.restore();
+    // primary ray and reflection
+    const dx=hx-CAM[0],dy=FL-CAM[1],dl=Math.hypot(dx,dy),d=[dx/dl,dy/dl],r=[d[0],-d[1]],ang=Math.atan2(r[1],r[0]);
+    arrow(CAM[0]+20*d[0],CAM[1]+20*d[1],hx,FL,C.fg,2.4);
+    ctx.fillStyle=C.fg;ctx.beginPath();ctx.arc(hx,FL,6,0,TAU);ctx.fill();
+    arrow(hx,FL,hx,FL-58,C.muted,1.6);label('N',hx+8,FL-50,C.muted);
+    // secondary ray samples and occlusion
+    // fine NeuS marching along the secondary ray; the drawn dots sum the weights of their bin
+    const M=16,L0=640,F=320,ts=[],ws=new Array(M).fill(0);for(let i=1;i<=M;i++)ts.push(i/M*L0);
+    const sg=.25,Phi=s=>1/(1+Math.exp(-sg*s));let T=1,O=0;
+    for(let i=0;i<F;i++){const t0=8+i/F*L0,t1=8+(i+1)/F*L0,s0=sdfWall(hx+r[0]*t0,FL+r[1]*t0),s1=sdfWall(hx+r[0]*t1,FL+r[1]*t1);
+      const a=Math.max((Phi(s0)-Phi(s1))/Math.max(Phi(s0),1e-9),0),w=T*a;O+=w;T*=1-a;ws[Math.min(M-1,Math.floor(i*M/F))]+=w;}
+    O=clamp(O,0,1);
+    const tw=(WX-hx)/r[0],yw=FL+r[1]*tw,hitW=r[0]>0&&yw>=WT&&yw<=FL;
+    label('x̂',hx-8,FL+34,C.fg);
+    const ind=rho<=RT?1:0;
+    const showSec=mode!=='ss';
+    if(mode==='ss'){lobe(hx,FL,ang,rho,C.gold);arrow(hx,FL,hx+r[0]*260,FL+r[1]*260,C.gold,2.2);label('d̂',hx+r[0]*270+8,FL+r[1]*270,C.gold);}
+    if(showSec){
+      const endT=hitW?tw:L0;
+      const faint=mode==='ss2'&&!ind;
+      arrow(hx,FL,hx+r[0]*Math.min(endT,L0),FL+r[1]*Math.min(endT,L0),faint?C['line-2']:C.ind,2.2,faint?[6,6]:null);
+      ts.forEach((t,i)=>{if(t>endT+L0/M*.5)return;const x=hx+r[0]*t,y=FL+r[1]*t;ctx.globalAlpha=faint?.3:1;ctx.fillStyle=C.ind;ctx.beginPath();ctx.arc(x,y,3+20*ws[i],0,TAU);ctx.fill();ctx.globalAlpha=1;});
+      label('d̂',hx+r[0]*90+12,FL+r[1]*90,C.ind);
+      if(mode==='mlp'){lobe(hx,FL,ang,rho,C.gold);
+        ctx.save();ctx.fillStyle=C['panel-2'];ctx.strokeStyle=C.ind;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(hx-196,FL+24,150,36,8);ctx.fill();ctx.stroke();
+        ctx.beginPath();ctx.moveTo(hx-46,FL+42);ctx.lineTo(hx-6,FL+8);ctx.stroke();ctx.restore();
+        label('f_ind → C_ind',hx-184,FL+48,C.ind);}
+      if(mode==='ss2'){
+        lobe(hx,FL,ang,rho,C.gold);
+        if(ind&&hitW){const r2=[-r[0],r[1]],a2=Math.atan2(r2[1],r2[0]);ctx.fillStyle=C.ind;ctx.beginPath();ctx.arc(WX,yw,6,0,TAU);ctx.fill();label('x̂′',WX-40,yw+6,C.ind);
+          lobe(WX,yw,a2,rho,C.ind);arrow(WX,yw,WX+r2[0]*200,yw+r2[1]*200,C.ind,2,[5,5]);}
+      }
+      if(!hitW&&!(mode==='ss2'&&!ind))label(L('escapes → environment','逃逸 → 环境贴图'),hx+r[0]*Math.min(L0,380)+10,FL+r[1]*Math.min(L0,380),C.gold);
+    }
+    // drag handle hint
+    label(L('drag x̂ ↔','拖动 x̂ ↔'),hx-20,FL+72,C.dim);
+    const e=EQ[mode];$('#ind-k').textContent=L(...e.k);$('#ind-txt').textContent=L(...e.t);
+    $('#ind-O').style.width=(showSec?O*100:0)+'%';$('#ind-Ov').textContent=showSec?O.toFixed(2):'–';
+    $('#ind-thr').hidden=mode!=='ss2';$('#ind-I').style.width=(ind*100)+'%';$('#ind-Iv').textContent=ind;
+  }
+  function setEq(){const box=$('#ind-eq');box.innerHTML=EQ[mode].eq;typeset(box);}
+  function segs(){segInit($('#ind-mode'),[{key:'ss',label:L('(a) 1st split-sum','(a) 第一次 split-sum')},{key:'mlp',label:L('(b) indirect MLP · training','(b) 间接光 MLP · 训练')},{key:'ss2',label:L('(c) 2nd split-sum · relighting','(c) 第二次 split-sum · 重打光')}],mode,k=>{mode=k;setEq();draw();});}
+  segs();setEq();
+  const at=e=>{const b=cv.getBoundingClientRect();hx=clamp((e.clientX-b.left)/b.width*W,170,WX-40);draw();};
+  cv.addEventListener('pointerdown',e=>{drag=true;cv.setPointerCapture(e.pointerId);at(e);});
+  cv.addEventListener('pointermove',e=>{if(drag)at(e);});
+  cv.addEventListener('pointerup',()=>{drag=false;});cv.addEventListener('pointercancel',()=>{drag=false;});
+  R.addEventListener('input',draw);
+  if(document.fonts&&document.fonts.load)document.fonts.load('500 16px "Noto Sans SC"','高光物体环境贴图拖动').then(draw).catch(()=>{});
+  return{enter(){draw();},lang(){segs();draw();}};
+})();
+
+/* --- indirect ablation numbers --- */
+hooks.indev=(()=>{
+  const f=v=>v.toFixed(2);
+  $('#ie-full').textContent=f(MAIN[OURS].v[8]);$('#ie-ind').textContent=f(MAIN['Ours (w.o. indirect MLP)'].v[8]);$('#ie-sec').textContent=f(MAIN['Ours (w.o. sec. split-sum)'].v[8]);
+  return{};
+})();
+
+/* --- quantitative results --- */
+hooks.results=(()=>{
+  const NAMES=['NDR','NDRMC','NMF','ENVIDR','GShader','NeRO',OURS,OURS5];
+  const SC=['avg','Teapot','Coffee','Car','Toaster','Helmet'];
+  const SCN={avg:['Average','平均'],Teapot:['Teapot','茶壶'],Coffee:['Coffee','咖啡'],Car:['Car','汽车'],Toaster:['Toaster','烤面包机'],Helmet:['Helmet','头盔']};
+  let met=4,sc='avg';
+  const label=n=>n===OURS?'RISE-SDF':n===OURS5?'RISE-SDF':n;
+  function draw(){
+    const M=METRICS[met];
+    const rows=NAMES.map(n=>{const v=sc==='avg'?MAIN[n].v[M.k]:D.scene[sc][n][M.k];return{name:label(n),sub:(n===OURS?'2.5 h':n===OURS5?'5 h':hrs(MAIN[n].t)),v,ours:n===OURS||n===OURS5};});
+    const vals=rows.filter(r=>r.v!=null).map(r=>r.v);
+    const mx=Math.max(...vals);
+    hbars($('#sv-res'),rows,{lo:M.lo,dec:sc==='avg'?M.d:Math.min(M.d,2),max:M.lo?mx*1.08:Math.ceil(mx/5)*5,min:0,naText:L('n/a: not physically based','不适用：非基于物理'),
+      ticks:M.lo?[]:[0,10,20,30,40].filter(t=>t<=Math.ceil(mx/5)*5)});
+    $('#rs-cap').textContent=L(`${M.en}${M.lo?' (lower is better)':' (higher is better)'} · ${SCN[sc][0]}${sc==='avg'?' of five scenes (Table 1)':' (supplementary, 2 decimals)'} · grey text: training time.`,
+      `${M.zh}${M.lo?'（越低越好）':'（越高越好）'} · ${SCN[sc][1]}${sc==='avg'?'，五个场景（表 1）':'（补充材料，两位小数）'} · 灰字：训练时间。`);
+  }
+  function segs(){segInit($('#rs-met'),METRICS.map((m,i)=>({key:i,label:L(m.en,m.zh)})),met,k=>{met=k;draw();});
+    segInit($('#rs-sc'),SC.map(k=>({key:k,label:L(...SCN[k])})),sc,k=>{sc=k;draw();});}
+  function cards(){
+    const o=MAIN[OURS].v,o5=MAIN[OURS5].v,ne=MAIN.NeRO.v;
+    const bestB=k=>Math.max(...['NDR','NDRMC','NMF','NeRO'].map(n=>MAIN[n].v[k]));
+    $('#rs-o1').textContent=o[1].toFixed(2);
+    $('#rs-t1').innerHTML=L(`<b>Roughness PSNR</b>, against ${bestB(1).toFixed(2)} for the best baseline; albedo ${o[2].toFixed(2)} against ${bestB(2).toFixed(2)}.`,`<b>粗糙度 PSNR</b>，最好的基线为 ${bestB(1).toFixed(2)}；反照率 ${o[2].toFixed(2)}，基线最好为 ${bestB(2).toFixed(2)}。`);
+    const bn=Math.min(...['NDR','NDRMC','NMF','ENVIDR','GShader','NeRO'].map(n=>MAIN[n].v[0]));
+    $('#rs-o2').textContent=o[0].toFixed(2);
+    $('#rs-t2').innerHTML=L(`<b>Normal MAE</b>, against ${bn.toFixed(2)} for the best baseline (NMF).`,`<b>法线 MAE</b>，最好的基线（NMF）为 ${bn.toFixed(2)}。`);
+    $('#rs-o3').textContent=o[8].toFixed(2)+' / '+ne[8].toFixed(2);
+    $('#rs-t3').innerHTML=L(`<b>Relighting PSNR, ours (2.5 h) vs NeRO:</b> a tie, but NeRO trains for more than 10 h and must be exported to Blender. With 5 h, ours reaches ${o5[8].toFixed(2)}.`,`<b>重打光 PSNR，本文（2.5 小时）对 NeRO：</b>基本持平，但 NeRO 要训练 10 小时以上，并且必须导出到 Blender。训练 5 小时后本文达到 ${o5[8].toFixed(2)}。`);
+  }
+  segs();cards();draw();
+  return{enter(){draw();},lang(){segs();cards();draw();}};
+})();
+
+/* --- qualitative viewer --- */
+hooks.qual=(()=>{
+  const OUT={relight:{en:'Relighting',zh:'重打光',sc:['toaster','helmet','musclecar'],m:['nero','envidr','nmf','ndrmc','gs']},
+    material:{en:'Albedo | roughness',zh:'反照率 | 粗糙度',sc:['toaster','helmet','musclecar'],m:['nero','nmf','ndrmc','ndr']},
+    normal:{en:'Normal',zh:'法线',sc:['coffee','musclecar'],m:['nero','envidr','nmf','ndrmc','gs']}};
+  const MN={nero:'NeRO',envidr:'ENVIDR',nmf:'NMF',ndrmc:'NDRMC',gs:'GShader',ndr:'NDR'};
+  const SN={toaster:['Toaster','烤面包机'],helmet:['Helmet','头盔'],musclecar:['Car','汽车'],coffee:['Coffee','咖啡']};
+  const CAP={relight:['Under an unseen light: other methods are blurry or colour-shifted, noisy, or aliased.','在训练时没见过的光照下：其他方法要么模糊偏色，要么有噪声或锯齿。'],
+    material:['Left half albedo, right half roughness (colour bar 0 → 1).','左半为反照率，右半为粗糙度（色条 0 → 1）。'],
+    normal:['NDRMC and GShader show geometry artifacts, NMF small bumps, ENVIDR fails under interreflection, NeRO over-smooths.','NDRMC 和 GShader 有几何伪影，NMF 有小凸起，ENVIDR 在互反射处失败，NeRO 过度平滑。']};
+  let out='relight',sc='toaster',m='nero';
+  function view(){
+    const f=(meth)=>`image/talk/cmp/${out}_${sc}_${meth}.jpg`;
+    $('#q-gt').src=f('gt');$('#q-ours').src=f('ours');$('#q-b').src=f(m);
+    $('#q-gt').alt='GT '+out;$('#q-ours').alt='RISE-SDF '+out;$('#q-b').alt=MN[m]+' '+out;
+    $('#q-bn').innerHTML='';$('#q-bn').textContent=MN[m];const t=document.createElement('span');t.textContent=hrs(MAIN[{nero:'NeRO',envidr:'ENVIDR',nmf:'NMF',ndrmc:'NDRMC',gs:'GShader',ndr:'NDR'}[m]].t);$('#q-bn').appendChild(t);
+    $('#q-ours-s').textContent='2.5 h';$('#q-cap').textContent=L(...CAP[out]);
+  }
+  function chips(){const box=$('#q-m');box.innerHTML='';OUT[out].m.forEach(k=>{const b=document.createElement('button');b.type='button';b.textContent=MN[k];b.setAttribute('aria-pressed',k===m?'true':'false');
+    b.addEventListener('click',()=>{m=k;$$('button',box).forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));view();});box.appendChild(b);});}
+  function segs(){
+    segInit($('#q-out'),Object.keys(OUT).map(k=>({key:k,label:L(OUT[k].en,OUT[k].zh)})),out,k=>{out=k;if(!OUT[out].sc.includes(sc))sc=OUT[out].sc[0];if(!OUT[out].m.includes(m))m=OUT[out].m[0];segs();chips();view();});
+    segInit($('#q-sc'),OUT[out].sc.map(k=>({key:k,label:L(...SN[k])})),sc,k=>{sc=k;view();});}
+  segs();chips();view();
+  return{lang(){segs();view();}};
+})();
+
+/* --- videos --- */
+hooks.videos=(()=>{
+  const V=[{k:'relighting',en:'Toaster relit: all methods',zh:'烤面包机重打光：所有方法'},{k:'relight_helmet',en:'Helmet under four lights',zh:'头盔在四种光照下'},{k:'material',en:'Albedo and roughness',zh:'反照率和粗糙度'}];
+  let cur='relighting',on=false;const v=$('#v-el');
+  function load(){v.poster=`image/talk/video/${cur}.jpg`;v.src=`image/talk/video/${cur}.mp4`;if(on){const p=v.play();p&&p.catch&&p.catch(()=>{});}}
+  function segs(){segInit($('#v-tab'),V.map(x=>({key:x.k,label:L(x.en,x.zh)})),cur,k=>{cur=k;load();});}
+  segs();
+  return{enter(){on=true;load();},leave(){on=false;v.pause();},lang(){segs();}};
+})();
+
+/* --- ablations --- */
+hooks.ablation=(()=>{
+  const VAR=[[OURS,'Full model','完整模型','2.5 h'],[OURS5,'Full model','完整模型','5 h'],['Ours (w.o. info-share)','no info sharing','无信息共享','2 h'],['Ours (w.o. indirect MLP)','no indirect MLP','无间接光 MLP','2.5 h'],['Ours (w.o. sec. split-sum)','no 2nd split-sum','无第二次 split-sum',''],['Ours (with Monte-Carlo)','Monte Carlo','Monte Carlo','6 h']];
+  let met=4,sc='helmet';
+  function draw(){const M=METRICS[met];
+    const rows=VAR.map(([n,en,zh,t])=>({name:L(en,zh),sub:t,v:MAIN[n].v[M.k],ours:n===OURS||n===OURS5}));
+    const mx=Math.max(...rows.filter(r=>r.v!=null).map(r=>r.v));
+    hbars($('#sv-ab'),rows,{lo:M.lo,dec:M.d,max:M.lo?mx*1.08:Math.ceil(mx/5)*5,min:0,ml:220,naText:L('n/a: acts at relighting only','不适用：只在重打光时起作用'),ticks:M.lo?[]:[0,10,20,30].filter(t=>t<=Math.ceil(mx/5)*5)});}
+  function grid(){const g=$('#mcg');g.innerHTML='';
+    const H=[['GT','GT'],['split-sum','split-sum'],['MC, 128 spp','MC，128 spp'],['MC, 256 spp','MC，256 spp']];
+    H.forEach(h=>{const s=document.createElement('span');s.className='h';s.textContent=L(...h);g.appendChild(s);});
+    const img=(src,alt)=>{const d=document.createElement('div');d.className='cell';const i=document.createElement('img');i.src=src;i.alt=alt;d.appendChild(i);g.appendChild(d);};
+    img(`image/talk/mc/${sc}_gt.jpg`,'ground truth');['splitsum','mc_128','mc_256'].forEach(m=>img(`image/talk/mc/${sc}_${m}.jpg`,m+' crop'));
+    const s=document.createElement('span');s.className='h';s.style.alignSelf='center';s.textContent=L('error →','误差 →');g.appendChild(s);
+    ['splitsum','mc_128','mc_256'].forEach(m=>img(`image/talk/mc/${sc}_${m}_err.jpg`,m+' error map'));
+    const a=MAIN[OURS].v[8],b=MAIN['Ours (with Monte-Carlo)'].v[8];
+    $('#mc-txt').innerHTML=L(`Top-left: full ground-truth relighting, box = crop. With Monte Carlo instead of split-sum, relighting PSNR drops from <b>${a.toFixed(2)}</b> to <b>${b.toFixed(2)}</b> and training takes 6 h instead of 2.5 h.`,`左上：完整的重打光真值，方框为裁剪区域。用 Monte Carlo 代替 split-sum，重打光 PSNR 从 <b>${a.toFixed(2)}</b> 降到 <b>${b.toFixed(2)}</b>，训练时间也从 2.5 小时变成 6 小时。`);}
+  function segs(){segInit($('#ab-met'),METRICS.map((m,i)=>({key:i,label:L(m.en,m.zh)})),met,k=>{met=k;draw();});
+    segInit($('#mc-sc'),[{key:'helmet',label:L('Helmet','头盔')},{key:'musclecar',label:L('Car','汽车')}],sc,k=>{sc=k;grid();});}
+  segs();draw();grid();
+  return{enter(){draw();},lang(){segs();draw();grid();}};
+})();
+
+/* --- real captures --- */
+hooks.real=(()=>{
+  const O=['Bear','Bunny','Coral','Maneki','Vase'],ENV={Bear:'sunset',Bunny:'sunset',Coral:'fireplace',Maneki:'bridge',Vase:'courtyard'};
+  const ON={Bear:'熊',Bunny:'兔子',Coral:'珊瑚',Maneki:'招财猫',Vase:'花瓶'};
+  let o='Maneki';
+  function view(){const k=o.toLowerCase();$('#rl-nvs').src=`image/talk/real/${k}_nvs.jpg`;$('#rl-mesh').src=`image/talk/real/${k}_mesh.jpg`;$('#rl-rel').src=`image/talk/real/${k}_relight.jpg`;
+    $('#rl-nvs').alt=o+' novel view';$('#rl-mesh').alt=o+' mesh';$('#rl-rel').alt=o+' relit';
+    $('#rl-relc').textContent=L(`relit: ${ENV[o]} map`,`重打光：${ENV[o]} 贴图`);
+    const svg=$('#sv-real');svg.innerHTML='';const M=D.real.methods,W=520,ml=110,mr=80,iw=W-ml-mr;
+    const groups=[[o,L(o,ON[o])],['Avg.',L('Average','平均')]],vmax=Math.max(...groups.flatMap(([g])=>D.real.rows[g]))*1.05,X=v=>ml+v/vmax*iw;
+    let y=10;
+    groups.forEach(([g,gl])=>{E('text',{x:0,y:y+14,class:'lab'},svg,gl+L(' · Chamfer ↓',' · Chamfer ↓'));y+=26;
+      M.forEach((m,i)=>{const v=D.real.rows[g][i],ours=m.startsWith('Ours'),nm=ours?'RISE-SDF':m+(m.startsWith('ND')?'*':'');
+        E('text',{x:ml-10,y:y+12,'text-anchor':'end',style:ours?`fill:${C.gold}`:'',class:'lab'},svg,nm+(ours?'*':''));
+        const r=E('rect',{x:ml,y:y,width:X(v)-ml,height:16,rx:4,fill:ours?C.gold:C.base,'fill-opacity':ours?1:.55,class:'gx'},svg);r.style.animationDelay=(i*.05)+'s';
+        E('text',{x:X(v)+8,y:y+13,class:'val',style:ours?`fill:${C['gold-2']}`:''},svg,v.toFixed(4));y+=22;});y+=12;});
+    svg.setAttribute('viewBox',`0 0 ${W} ${y}`);
+  }
+  function segs(){segInit($('#rl-o'),O.map(k=>({key:k,label:L(k,ON[k])})),o,k=>{o=k;view();});}
+  segs();view();
+  return{enter(){view();},lang(){segs();view();}};
+})();
+
+/* --- limitations: diffuse table and runtime --- */
+hooks.limits=(()=>{
+  function build(){
+    const cols=[[0,L('Normal MAE ↓','法线 MAE ↓'),true],[1,L('Albedo PSNR','反照率 PSNR')],[4,L('NVS PSNR','新视角 PSNR')],[7,L('Relight PSNR','重打光 PSNR')],[9,L('Relight LPIPS ↓','重打光 LPIPS ↓'),true]];
+    const ms=['NeRFactor','InvRender','TensoIR','Ours'];
+    let h='<thead><tr><th></th>'+cols.map(c=>`<th>${c[1]}</th>`).join('')+'</tr></thead><tbody>';
+    ms.forEach(m=>{h+=`<tr class="${m==='Ours'?'ours':''}"><td>${m==='Ours'?'RISE-SDF':m}</td>`+cols.map(([k,,lo])=>{const vs=ms.map(x=>D.diffuse[x][k]),best=lo?Math.min(...vs):Math.max(...vs),v=D.diffuse[m][k];return`<td class="${v===best?'best':''}">${v.toFixed(k===9?3:2)}</td>`;}).join('')+'</tr>';});
+    $('#lim-tab').innerHTML=h+'</tbody>';
+    const f=D.fps['Avg.'];
+    $('#lim-fps').textContent=L(`Relighting runs at ${f[1].toFixed(2)} fps against ${f[0].toFixed(2)} for NeRO in Blender; neither is interactive.`,`重打光速度为 ${f[1].toFixed(2)} fps，NeRO 在 Blender 中为 ${f[0].toFixed(2)} fps；两者都不能交互。`);
+  }
+  build();return{lang(){build();}};
+})();
+
+const fromHash=()=>{const m=/^#s(\d+)$/.exec(location.hash||'');return m?Math.max(0,Math.min(slides.length-1,+m[1]-1)):null;};
+addEventListener('hashchange',()=>{const i=fromHash();if(i!=null&&i!==cur)show(i);});
+show(fromHash()||0);
+})();
+</script>
